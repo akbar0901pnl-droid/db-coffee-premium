@@ -456,7 +456,7 @@
     </div>
     <div class="row g-3 mb-4">
         <div class="col-md-6"><div class="stat-card border-start border-4 border-success bg-light"><div class="stat-icon bg-success text-white"><i class="bi bi-box-arrow-in-down"></i></div><div><div class="text-muted small fw-bold">MODAL AWAL SHIFT</div><h4 class="m-0 fw-bold text-success" id="display-total-masuk">Rp 0</h4></div></div></div>
-        <div class="col-md-6"><div class="stat-card border-start border-4 border-danger bg-light"><div class="stat-icon bg-danger text-white"><i class="bi bi-box-arrow-up"></i></div><div><div class="text-muted small fw-bold">TOTAL KAS KELUAR</div><h4 class="m-0 fw-bold text-danger" id="display-total-keluar">Rp 0</h4></div></div></div>
+        <div class="col-md-6"><div class="stat-card border-start border-4 border-danger bg-light" onclick="showRiwayatPengeluaran()" style="cursor:pointer;transition:all .2s" onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 8px 20px rgba(239,68,68,.15)'" onmouseout="this.style.transform='none';this.style.boxShadow='none'"><div class="stat-icon bg-danger text-white"><i class="bi bi-box-arrow-up"></i></div><div><div class="text-muted small fw-bold">TOTAL KAS KELUAR <i class="bi bi-eye-fill ms-1 opacity-50" style="font-size:10px"></i></div><h4 class="m-0 fw-bold text-danger" id="display-total-keluar">Rp 0</h4></div></div></div>
     </div>
     <div class="row g-3 mb-3">
         <div class="col-md-6"><div class="mini-card shadow-sm h-100"><div class="icon-box bg-soft-green"><i class="fas fa-money-bill-wave text-success"></i></div><div class="card-content"><span class="label">SALDO FISIK LACI</span><h3 id="dash-saldo-tunai" class="value text-success">Rp 0</h3></div></div></div>
@@ -1950,13 +1950,13 @@ function updateDashboard() {
     setEl('dash-orders', filteredHistoryFinal.length);
     setEl('dash-saldo-tunai', "Rp " + saldoFisik.toLocaleString());
     setEl('dash-saldo-qris', "Rp " + totalQRIS.toLocaleString());
-    // Kas masuk manual (tipe 'masuk' di log modal, bukan penjualan tunai)
-    const kasMasukManual = filteredModal.filter(m => (m.Tipe || m.tipe || '').toLowerCase() === 'masuk')
+    // Kas masuk manual digunakan untuk saldo fisik laci (sudah dihitung di atas)
+    const totalKasMasukLog = filteredModal.filter(m => (m.Tipe || m.tipe || '').toLowerCase() === 'masuk')
         .reduce((s,i) => s + Number(i.Jumlah || i.jumlah || i.Nominal || i.nominal || 0), 0);
-    const totalKasMasukLog = kasMasukManual;
     setEl('display-total-masuk', "Rp " + (role !== 'admin' ? Number(localStorage.getItem('shift_modal_awal') || 0) : totalKasMasukLog).toLocaleString());
     setEl('display-total-keluar', "Rp " + totalKeluarAll.toLocaleString());
-    setEl('stats-kas-masuk', "Rp " + kasMasukManual.toLocaleString());
+    // KAS MASUK (HARI INI) = total penjualan tunai
+    setEl('stats-kas-masuk', "Rp " + totalTunaiAll.toLocaleString());
     setEl('dash-cashier', localStorage.getItem('user_nama') || '-');
 
     // Bagian lain tetap sama
@@ -5907,6 +5907,89 @@ function renderRekapShift() {
 }
 
 
+
+// =============================================================
+// RIWAYAT PENGELUARAN POPUP
+// =============================================================
+function showRiwayatPengeluaran() {
+    const start = document.getElementById("dash-start-date")?.value || new Date().toLocaleDateString("en-CA");
+    const end   = document.getElementById("dash-end-date")?.value   || new Date().toLocaleDateString("en-CA");
+    const role  = (localStorage.getItem("user_role") || "Kasir").toLowerCase();
+    const cabang = localStorage.getItem("user_cabang") || "";
+
+    let expenses = (DATA.expenses || []).filter(e => {
+        const ts = e.Timestamp || e.timestamp || e.Waktu || e.waktu;
+        if (!ts) return false;
+        const d = new Date(ts).toLocaleDateString("en-CA");
+        return d >= start && d <= end;
+    });
+
+    if (role !== "admin" && cabang) {
+        expenses = expenses.filter(e => (e.Cabang || e.cabang || "") === cabang);
+    } else if (role === "admin") {
+        const el = document.getElementById("filter-cabang-dashboard");
+        const selected = el ? el.value : "Semua";
+        if (selected !== "Semua") expenses = expenses.filter(e => (e.Cabang || e.cabang || "") === selected);
+    }
+
+    if (expenses.length === 0) {
+        Swal.fire({ icon: "info", title: "Riwayat Pengeluaran", text: "Tidak ada pengeluaran pada periode ini.", confirmButtonColor: "#ef4444" });
+        return;
+    }
+
+    const total = expenses.reduce((s,e) => s + Number(e.Nominal || e.nominal || 0), 0);
+
+    const rows = expenses
+        .sort((a,b) => new Date(b.Timestamp||b.timestamp||0) - new Date(a.Timestamp||a.timestamp||0))
+        .map((e,i) => {
+            const ts  = e.Timestamp || e.timestamp || e.Waktu || e.waktu;
+            const tgl = ts ? new Date(ts).toLocaleString("id-ID",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "-";
+            const ket = e.Keterangan || e.keterangan || "-";
+            const nom = Number(e.Nominal || e.nominal || 0);
+            const kas = e.Kasir || e.kasir || e.User || e.user || "-";
+            return `<tr>
+                <td class="text-center text-muted" style="font-size:11px;padding:8px 6px">${i+1}</td>
+                <td style="font-size:11px;padding:8px 6px">${tgl}</td>
+                <td style="font-size:11px;padding:8px 6px">${ket}</td>
+                <td style="font-size:11px;padding:8px 6px">${kas}</td>
+                <td class="text-end fw-bold text-danger" style="font-size:12px;padding:8px 6px">Rp ${nom.toLocaleString("id-ID")}</td>
+            </tr>`;
+        }).join("");
+
+    Swal.fire({
+        title: `<i class="bi bi-box-arrow-up text-danger me-2"></i>Riwayat Pengeluaran`,
+        html: `
+            <div style="margin-bottom:10px;text-align:left;font-size:11px;color:#64748b">
+                Periode: <strong>${new Date(start+"T00:00:00").toLocaleDateString("id-ID",{day:"2-digit",month:"long",year:"numeric"})}</strong>
+                ${ start!==end ? " — <strong>"+new Date(end+"T00:00:00").toLocaleDateString("id-ID",{day:"2-digit",month:"long",year:"numeric"})+"</strong>" : "" }
+            </div>
+            <div style="max-height:360px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:10px">
+                <table style="width:100%;border-collapse:collapse">
+                    <thead style="background:#fef2f2;position:sticky;top:0">
+                        <tr>
+                            <th style="padding:8px 6px;font-size:10px;color:#64748b;font-weight:700;text-align:center">#</th>
+                            <th style="padding:8px 6px;font-size:10px;color:#64748b;font-weight:700;text-align:left">WAKTU</th>
+                            <th style="padding:8px 6px;font-size:10px;color:#64748b;font-weight:700;text-align:left">KETERANGAN</th>
+                            <th style="padding:8px 6px;font-size:10px;color:#64748b;font-weight:700;text-align:left">KASIR</th>
+                            <th style="padding:8px 6px;font-size:10px;color:#64748b;font-weight:700;text-align:right">NOMINAL</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                    <tfoot style="background:#fef2f2;border-top:2px solid #fca5a5">
+                        <tr>
+                            <td colspan="4" style="padding:10px 6px;font-size:12px;font-weight:700;text-align:right;color:#dc2626">TOTAL PENGELUARAN</td>
+                            <td style="padding:10px 6px;font-size:13px;font-weight:800;text-align:right;color:#dc2626">Rp ${total.toLocaleString("id-ID")}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>`,
+        width: 640,
+        showConfirmButton: true,
+        confirmButtonText: "Tutup",
+        confirmButtonColor: "#ef4444",
+        customClass: { popup: "text-start" }
+    });
+}
 </script>
 </body>
 </html>
