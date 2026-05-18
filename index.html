@@ -1864,12 +1864,13 @@ function updateDashboard() {
 
     if (role !== 'admin') {
         // === KASIR BIASA ===
-        // Saldo Fisik Laci = Modal Awal + Penjualan Tunai + Kas Masuk Lain - Kas Keluar
+        // Saldo Fisik Laci = Modal Awal + Penjualan Tunai + Kas Masuk Tunai - Pengeluaran
         const waktuAbsen = localStorage.getItem('shift_start_iso');
-        const modalAwal = Number(localStorage.getItem('shift_modal_awal') || 0);
-        
+        const modalAwal  = Number(localStorage.getItem('shift_modal_awal') || 0);
+
         if (waktuAbsen) {
             const wa = new Date(waktuAbsen);
+
             const tunaiShift = filteredHistoryFinal.filter(h => {
                 const ts = h.Timestamp || h.timestamp || h.Waktu || h.waktu;
                 return ts && new Date(ts) >= wa && (h.Metode_Bayar || h.metode_bayar) === "Tunai";
@@ -1883,57 +1884,60 @@ function updateDashboard() {
                 const matchCabang  = !activeCabang || cab === activeCabang;
                 return ts && new Date(ts) >= wa && tipe === 'masuk' && matchCabang;
             }).reduce((s,m) => s + parseFloat(m.Jumlah || m.jumlah || m.Nominal || m.nominal || 0), 0);
-            
+
             const keluarShift = filteredExp.filter(e => {
                 const ts = e.Timestamp || e.timestamp || e.Waktu || e.waktu;
                 return ts && new Date(ts) >= wa;
             }).reduce((s,i) => s + Number(i.Nominal || i.nominal || 0), 0);
-            
-            // Modal Awal + Penjualan Tunai + Kas Masuk Lain - Kas Keluar
+
+            // Formula: Modal Awal + Penjualan Tunai + Kas Masuk Tunai - Pengeluaran
             saldoFisik = modalAwal + tunaiShift + kasMasukShift - keluarShift;
+            console.log('✅ Saldo Fisik Kasir (shift):', { modalAwal, tunaiShift, kasMasukShift, keluarShift, saldoFisik });
         } else {
+            // Fallback tanpa waktu absen: pakai data ter-filter tanggal
             const kasMasukAll = filteredModal.filter(m => (m.Tipe || m.tipe || '').toLowerCase() === 'masuk')
                 .reduce((s,m) => s + Number(m.Jumlah || m.jumlah || m.Nominal || m.nominal || 0), 0);
+            // Modal awal tetap diikutkan agar tidak selisih
             saldoFisik = modalAwal + totalTunaiAll + kasMasukAll - totalKeluarAll;
+            console.log('⚠️ Saldo Fisik Kasir (no-absen fallback):', { modalAwal, totalTunaiAll, kasMasukAll, totalKeluarAll, saldoFisik });
         }
-    } 
+    }
     else {
-        // === ADMIN - SALDO FISIK DARI CLOSING TERAKHIR DALAM RANGE TANGGAL ===
-        console.log('RekapShift Total:', DATA.rekapShift ? DATA.rekapShift.length : 0);
+        // === ADMIN - Formula: Modal Awal + Penjualan Tunai + Kas Masuk Tunai - Pengeluaran ===
+        // Hitung berdasarkan data ter-filter (range tanggal & cabang)
+        const kasMasukAll = filteredModal.filter(m => (m.Tipe || m.tipe || '').toLowerCase() === 'masuk')
+            .reduce((s,m) => s + Number(m.Jumlah || m.jumlah || m.Nominal || m.nominal || 0), 0);
 
-        if (DATA.rekapShift && Array.isArray(DATA.rekapShift) && DATA.rekapShift.length > 0) {
+        // Cari total modal awal dari rekap shift dalam range tanggal (bisa lebih dari 1 shift)
+        let modalAwalAdmin = 0;
+        if (DATA.rekapShift && Array.isArray(DATA.rekapShift)) {
             const filteredRekap = DATA.rekapShift.filter(r => {
                 const ts = r.Timestamp || r.timestamp || r.Waktu || r.waktu;
                 if (!ts) return false;
                 const d = new Date(ts).toLocaleDateString('en-CA');
+                // Filter cabang juga jika admin memilih cabang tertentu
+                const el = document.getElementById('filter-cabang-dashboard');
+                const selected = el ? el.value : 'Semua';
+                if (selected !== 'Semua') {
+                    const rc = (r.Cabang || r.cabang || '').toString();
+                    if (rc !== selected) return false;
+                }
                 return d >= start && d <= end;
             });
 
-            console.log('Rekap di range tanggal:', filteredRekap.length);
-
             if (filteredRekap.length > 0) {
-                // Ambil closing TERAKHIR (paling baru) dalam range tanggal
-                const sorted = [...filteredRekap].sort((a, b) => 
-                    new Date(b.Timestamp || b.timestamp || 0) - new Date(a.Timestamp || a.timestamp || 0)
+                // Jika ada data rekap: gunakan modal awal shift pertama dalam range
+                const sorted = [...filteredRekap].sort((a, b) =>
+                    new Date(a.Timestamp || a.timestamp || 0) - new Date(b.Timestamp || b.timestamp || 0)
                 );
-                
-                saldoFisik = Number(sorted[0].Saldo_Akhir || 
-                                  sorted[0].saldo_akhir || 
-                                  sorted[0].Saldo_akhir || 0);
-                
-                console.log('✅ Saldo Fisik dari Closing Terakhir:', saldoFisik, 
-                           'pada', sorted[0].Timestamp || sorted[0].timestamp);
+                modalAwalAdmin = Number(sorted[0].Modal_Awal || sorted[0].modal_awal || 0);
+                console.log('✅ Modal Awal Admin dari Rekap Shift:', modalAwalAdmin);
             }
         }
 
-        // Fallback jika tidak ada closing di range tersebut
-        if (saldoFisik === 0) {
-            // Gunakan formula yang sama: Modal Awal + Penjualan Tunai + Kas Masuk Lain - Kas Keluar
-            const kasMasukAll = filteredModal.filter(m => (m.Tipe || m.tipe || '').toLowerCase() === 'masuk')
-                .reduce((s,m) => s + Number(m.Jumlah || m.jumlah || m.Nominal || m.nominal || 0), 0);
-            saldoFisik = totalTunaiAll + kasMasukAll - totalKeluarAll;
-            console.log('⚠️ Tidak ada data closing, menggunakan perhitungan: tunai + kas masuk - keluar');
-        }
+        // Formula konsisten: Modal Awal + Penjualan Tunai + Kas Masuk - Pengeluaran
+        saldoFisik = modalAwalAdmin + totalTunaiAll + kasMasukAll - totalKeluarAll;
+        console.log('✅ Saldo Fisik Admin:', { modalAwalAdmin, totalTunaiAll, kasMasukAll, totalKeluarAll, saldoFisik });
     }
 
     // ==================== UPDATE UI ====================
@@ -1944,12 +1948,15 @@ function updateDashboard() {
 
     setEl('dash-sales', "Rp " + totalSales.toLocaleString());
     setEl('dash-orders', filteredHistoryFinal.length);
-    setEl('dash-saldo-tunai', "Rp " + saldoFisik.toLocaleString());   // ← INI YANG DIPERBAIKI
+    setEl('dash-saldo-tunai', "Rp " + saldoFisik.toLocaleString());
     setEl('dash-saldo-qris', "Rp " + totalQRIS.toLocaleString());
-    const totalKasMasukLog = filteredModal.reduce((s,i) => s + Number(i.Jumlah || i.jumlah || i.Nominal || i.nominal || 0), 0);
+    // Kas masuk manual (tipe 'masuk' di log modal, bukan penjualan tunai)
+    const kasMasukManual = filteredModal.filter(m => (m.Tipe || m.tipe || '').toLowerCase() === 'masuk')
+        .reduce((s,i) => s + Number(i.Jumlah || i.jumlah || i.Nominal || i.nominal || 0), 0);
+    const totalKasMasukLog = kasMasukManual;
     setEl('display-total-masuk', "Rp " + (role !== 'admin' ? Number(localStorage.getItem('shift_modal_awal') || 0) : totalKasMasukLog).toLocaleString());
     setEl('display-total-keluar', "Rp " + totalKeluarAll.toLocaleString());
-    setEl('stats-kas-masuk', "Rp " + totalTunaiAll.toLocaleString());
+    setEl('stats-kas-masuk', "Rp " + kasMasukManual.toLocaleString());
     setEl('dash-cashier', localStorage.getItem('user_nama') || '-');
 
     // Bagian lain tetap sama
