@@ -459,7 +459,7 @@
         <div class="col-md-6"><div class="stat-card border-start border-4 border-danger bg-light"><div class="stat-icon bg-danger text-white"><i class="bi bi-box-arrow-up"></i></div><div><div class="text-muted small fw-bold">TOTAL KAS KELUAR</div><h4 class="m-0 fw-bold text-danger" id="display-total-keluar">Rp 0</h4></div></div></div>
     </div>
     <div class="row g-3 mb-3">
-        <div class="col-md-6"><div class="mini-card shadow-sm h-100"><div class="icon-box bg-soft-green"><i class="fas fa-money-bill-wave text-success"></i></div><div class="card-content"><span class="label">SALDO FISIK (TUNAI)</span><h3 id="dash-saldo-tunai" class="value text-success">Rp 0</h3></div></div></div>
+        <div class="col-md-6"><div class="mini-card shadow-sm h-100"><div class="icon-box bg-soft-green"><i class="fas fa-money-bill-wave text-success"></i></div><div class="card-content"><span class="label">SALDO FISIK LACI</span><h3 id="dash-saldo-tunai" class="value text-success">Rp 0</h3></div></div></div>
         <div class="col-md-6"><div class="mini-card shadow-sm h-100"><div class="icon-box bg-soft-blue"><i class="fas fa-qrcode text-primary"></i></div><div class="card-content"><span class="label">SALDO DIGITAL (QRIS)</span><h3 id="dash-saldo-qris" class="value text-primary">Rp 0</h3></div></div></div>
     </div>
     <div class="row g-3 mb-4">
@@ -1863,7 +1863,8 @@ function updateDashboard() {
     let saldoFisik = 0;
 
     if (role !== 'admin') {
-        // === KASIR BIASA (tetap sama) ===
+        // === KASIR BIASA ===
+        // Saldo Fisik Laci = Modal Awal + Penjualan Tunai + Kas Masuk Lain - Kas Keluar
         const waktuAbsen = localStorage.getItem('shift_start_iso');
         const modalAwal = Number(localStorage.getItem('shift_modal_awal') || 0);
         
@@ -1873,15 +1874,27 @@ function updateDashboard() {
                 const ts = h.Timestamp || h.timestamp || h.Waktu || h.waktu;
                 return ts && new Date(ts) >= wa && (h.Metode_Bayar || h.metode_bayar) === "Tunai";
             }).reduce((s,i) => s + Number(i.Total_Harga || i.total_harga || 0), 0);
+
+            const kasMasukShift = (DATA.modal || []).filter(m => {
+                const ts   = m.Timestamp || m.timestamp || m.Waktu || m.waktu;
+                const tipe = (m.Tipe || m.tipe || '').toLowerCase();
+                const cab  = (m.Cabang || m.cabang || '').toLowerCase();
+                const activeCabang = (localStorage.getItem('user_cabang') || '').toLowerCase();
+                const matchCabang  = !activeCabang || cab === activeCabang;
+                return ts && new Date(ts) >= wa && tipe === 'masuk' && matchCabang;
+            }).reduce((s,m) => s + parseFloat(m.Jumlah || m.jumlah || m.Nominal || m.nominal || 0), 0);
             
             const keluarShift = filteredExp.filter(e => {
                 const ts = e.Timestamp || e.timestamp || e.Waktu || e.waktu;
                 return ts && new Date(ts) >= wa;
             }).reduce((s,i) => s + Number(i.Nominal || i.nominal || 0), 0);
             
-            saldoFisik = modalAwal + tunaiShift - keluarShift;
+            // Modal Awal + Penjualan Tunai + Kas Masuk Lain - Kas Keluar
+            saldoFisik = modalAwal + tunaiShift + kasMasukShift - keluarShift;
         } else {
-            saldoFisik = modalAwal + totalTunaiAll - totalKeluarAll;
+            const kasMasukAll = filteredModal.filter(m => (m.Tipe || m.tipe || '').toLowerCase() === 'masuk')
+                .reduce((s,m) => s + Number(m.Jumlah || m.jumlah || m.Nominal || m.nominal || 0), 0);
+            saldoFisik = modalAwal + totalTunaiAll + kasMasukAll - totalKeluarAll;
         }
     } 
     else {
@@ -1915,8 +1928,11 @@ function updateDashboard() {
 
         // Fallback jika tidak ada closing di range tersebut
         if (saldoFisik === 0) {
-            saldoFisik = totalTunaiAll - totalKeluarAll;
-            console.log('⚠️ Tidak ada data closing, menggunakan perhitungan tunai - keluar');
+            // Gunakan formula yang sama: Modal Awal + Penjualan Tunai + Kas Masuk Lain - Kas Keluar
+            const kasMasukAll = filteredModal.filter(m => (m.Tipe || m.tipe || '').toLowerCase() === 'masuk')
+                .reduce((s,m) => s + Number(m.Jumlah || m.jumlah || m.Nominal || m.nominal || 0), 0);
+            saldoFisik = totalTunaiAll + kasMasukAll - totalKeluarAll;
+            console.log('⚠️ Tidak ada data closing, menggunakan perhitungan: tunai + kas masuk - keluar');
         }
     }
 
@@ -5245,7 +5261,7 @@ async function simpanKasMasuk() {
 async function showClosingModal() {
     const activeCabang = getActiveCabang();
     const userNama     = localStorage.getItem('user_nama') || KASIR || '-';
-    const modalAwal    = Number(localStorage.getItem('shift_modal_awal') || 0);
+    const modalAwal    = parseFloat(localStorage.getItem('shift_modal_awal') || 0);
     const shiftNama    = localStorage.getItem('shift_nama') || '-';
     const shiftId      = localStorage.getItem('shift_id')   || '';
     const shiftStart   = localStorage.getItem('shift_jam_start') || '-';
@@ -5275,40 +5291,110 @@ async function showClosingModal() {
         if (res.status !== 'success') throw new Error(res.message || 'Gagal mengambil data');
 
         const d = res.data || {};
-        const kasTunai  = Number(d.cash       || d.tunai       || 0);
-        const kasKeluar = Number(d.totalKeluar || d.kas_keluar  || 0);
-        const kasMasuk  = Number(d.kasMasuk    || d.kas_masuk   || d.totalMasuk || 0);
 
-        // RUMUS BENAR:
-        // Saldo Akhir Laci = Modal Awal + Total Penjualan Tunai + Kas Masuk Non-Tunai - Kas Keluar
-        const saldoAkhir = modalAwal + kasTunai + kasMasuk - kasKeluar;
+        // ── Variabel dasar (semua parseFloat agar aman dari string concatenation) ──
+        const penjualanTunai = parseFloat(d.cash       || d.tunai       || 0); // Total Penjualan Tunai hari ini
+        const penjualanQris  = parseFloat(d.qris       || d.totalQris   || 0); // Total Penjualan QRIS hari ini
+        const kasKeluar      = parseFloat(d.totalKeluar || d.kas_keluar || 0); // Total Pengeluaran / Kas Keluar
+
+        // [BUG FIX] Hitung Kas Masuk dari DATA.modal lokal (filter cabang + sejak absen)
+        const wa = new Date(waktuAbsen);
+        const kasMasukShift = (DATA.modal || []).filter(m => {
+            const ts   = m.Timestamp || m.timestamp || m.Waktu || m.waktu;
+            const tipe = (m.Tipe || m.tipe || '').toLowerCase();
+            const cab  = (m.Cabang || m.cabang || '').toLowerCase();
+            const matchCabang = !activeCabang || cab === activeCabang.toLowerCase();
+            return ts && new Date(ts) >= wa && tipe === 'masuk' && matchCabang;
+        }).reduce((s, m) => s + parseFloat(m.Jumlah || m.jumlah || m.Nominal || m.nominal || 0), 0);
+
+        // ── Turunan sesuai aturan keuangan ──
+        // Sales Today (Omzet) = Penjualan Tunai + Penjualan QRIS
+        const salesToday = penjualanTunai + penjualanQris;
+
+        // [BUG FIX] Saldo Fisik Tunai = Modal Awal + Penjualan Tunai + Kas Masuk
+        const saldoFisikTunai = modalAwal + penjualanTunai + kasMasukShift;
+
+        // Kas Masuk Hari Ini = Kas Masuk non-penjualan (input manual)
+        const kasMasukHariIni = kasMasukShift;
+
+        // [BUG FIX] Saldo Akhir Laci = Saldo Fisik Tunai − Kas Keluar
+        const saldoAkhir = saldoFisikTunai - kasKeluar;
 
         Swal.close();
 
         const result = await Swal.fire({
             title: 'Rangkuman Closing Shift',
             html: `
-                <div style="text-align:center">
-                    <h3>${shiftNama}</h3>
-                    <p style="color:#64748b">${userNama} • ${activeCabang}</p>
+                <!-- Header Info -->
+                <div style="text-align:center;margin-bottom:4px">
+                    <h3 style="margin:0;font-size:18px;font-weight:700">${shiftNama}</h3>
+                    <p style="color:#64748b;margin:4px 0 0">${userNama} • ${activeCabang}</p>
                 </div>
-                <div style="background:#f8fafc;padding:18px;border-radius:16px;margin:15px 0;text-align:left">
-                    <div style="display:flex;justify-content:space-between;margin:8px 0;border-bottom:1px dashed #e2e8f0;padding-bottom:8px">
-                        <span style="color:#64748b">Modal / Saldo Awal</span><strong style="color:#7c3aed">Rp ${modalAwal.toLocaleString()}</strong>
+
+                <!-- KOTAK UTAMA -->
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;padding:16px 18px;margin:14px 0;text-align:left">
+
+                    <!-- 💰 Modal Awal Shift -->
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9">
+                        <span style="color:#64748b;font-size:13px">💰 Modal Awal Shift</span>
+                        <strong style="color:#7c3aed;font-size:13px">Rp ${modalAwal.toLocaleString('id-ID')}</strong>
                     </div>
-                    <div style="display:flex;justify-content:space-between;margin:8px 0"><span>Total Transaksi</span><strong>${d.count || 0} kali</strong></div>
-                    <div style="display:flex;justify-content:space-between;margin:8px 0;color:#10b981"><span>+ Penjualan Tunai</span><strong>Rp ${kasTunai.toLocaleString()}</strong></div>
-                    <div style="display:flex;justify-content:space-between;margin:8px 0;color:#3b82f6"><span>Total QRIS</span><strong>Rp ${(d.qris||0).toLocaleString()}</strong></div>
-                    <div style="display:flex;justify-content:space-between;margin:8px 0;color:#0ea5e9"><span>+ Kas Masuk</span><strong>Rp ${kasMasuk.toLocaleString()}</strong></div>
-                    <div style="display:flex;justify-content:space-between;margin:8px 0;color:#ef4444"><span>- Kas Keluar</span><strong>Rp ${kasKeluar.toLocaleString()}</strong></div>
+
+                    <!-- 🧾 Total Transaksi -->
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9">
+                        <span style="color:#64748b;font-size:13px">🧾 Total Transaksi</span>
+                        <strong style="font-size:13px">${parseFloat(d.count || 0)} kali</strong>
+                    </div>
+
+                    <!-- + Penjualan Tunai -->
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9">
+                        <span style="color:#10b981;font-size:13px">+ Penjualan Tunai</span>
+                        <strong style="color:#10b981;font-size:13px">Rp ${penjualanTunai.toLocaleString('id-ID')}</strong>
+                    </div>
+
+                    <!-- + Kas Masuk (Manual) -->
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9">
+                        <span style="color:#10b981;font-size:13px">+ Kas Masuk (Manual)</span>
+                        <strong style="color:#10b981;font-size:13px">Rp ${kasMasukShift.toLocaleString('id-ID')}</strong>
+                    </div>
+
+                    <!-- + Penjualan QRIS -->
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9">
+                        <span style="color:#3b82f6;font-size:13px">+ Penjualan QRIS</span>
+                        <strong style="color:#3b82f6;font-size:13px">Rp ${penjualanQris.toLocaleString('id-ID')}</strong>
+                    </div>
+
+                    <!-- 📊 Sales Today (Omzet) — highlight biru -->
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;margin:6px 0;background:#eff6ff;border-radius:10px;border-left:3px solid #3b82f6">
+                        <span style="color:#1d4ed8;font-size:13px;font-weight:700">📊 Sales Today (Omzet)</span>
+                        <strong style="color:#1d4ed8;font-size:13px">Rp ${salesToday.toLocaleString('id-ID')}</strong>
+                    </div>
+
+                    <!-- 🏧 Saldo Fisik Tunai — highlight hijau -->
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;margin:4px 0 2px;background:#f0fdf4;border-radius:10px;border-left:3px solid #10b981">
+                        <span style="color:#166534;font-size:13px;font-weight:700">🏧 Saldo Fisik Tunai</span>
+                        <strong style="color:#166534;font-size:13px">Rp ${saldoFisikTunai.toLocaleString('id-ID')}</strong>
+                    </div>
+                    <div style="font-size:10px;color:#94a3b8;margin:0 0 6px 12px">Modal Awal + Penjualan Tunai + Kas Masuk</div>
+
+                    <!-- − Pengeluaran (Kas Keluar) -->
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
+                        <span style="color:#ef4444;font-size:13px">− Pengeluaran (Kas Keluar)</span>
+                        <strong style="color:#ef4444;font-size:13px">Rp ${kasKeluar.toLocaleString('id-ID')}</strong>
+                    </div>
+
                 </div>
-                <div style="background:#fefce8;padding:20px;border-radius:16px;text-align:center">
-                    <div style="color:#854d0e;font-size:12px;margin-bottom:4px">SALDO AKHIR LACI (SISTEM)</div>
-                    <div style="font-size:11px;color:#a16207;margin-bottom:8px">Modal + Tunai + Kas Masuk − Kas Keluar</div>
-                    <div style="font-size:28px;font-weight:800;color:#854d0e">Rp ${saldoAkhir.toLocaleString()}</div>
+
+                <!-- SALDO AKHIR LACI — box kuning -->
+                <div style="background:#fefce8;border:1px solid #fde68a;border-radius:16px;padding:20px;text-align:center">
+                    <div style="font-size:11px;font-weight:700;color:#854d0e;letter-spacing:.6px;text-transform:uppercase;margin-bottom:2px">💵 SALDO AKHIR LACI (EXPECTED)</div>
+                    <div style="font-size:11px;color:#a16207;margin-bottom:10px">Saldo Fisik Tunai − Pengeluaran</div>
+                    <div style="font-size:28px;font-weight:800;color:#854d0e">Rp ${saldoAkhir.toLocaleString('id-ID')}</div>
+                    <div style="font-size:11px;color:#a16207;margin-top:6px">Kas Masuk Manual: Rp ${kasMasukShift.toLocaleString('id-ID')}</div>
                 </div>`,
             confirmButtonText: '✅ Simpan & Tutup Shift',
             showCancelButton: true,
+            cancelButtonText: 'Batal',
             confirmButtonColor: '#10b981'
         });
 
@@ -5326,12 +5412,14 @@ async function showClosingModal() {
                     shift_id: shiftId,
                     waktu_mulai: localStorage.getItem('shift_start_iso') || new Date().toISOString(),
                     modal_awal: modalAwal,
-                    tunai: kasTunai,
-                    qris: d.qris || 0,
-                    kas_masuk: kasMasuk,
+                    tunai: penjualanTunai,
+                    qris: penjualanQris,
+                    kas_masuk: kasMasukHariIni,
                     keluar: kasKeluar,
-                    count: d.count || 0,
-                    total_diskon: d.totalDiskon || 0,
+                    sales_today: salesToday,
+                    saldo_fisik_tunai: saldoFisikTunai,
+                    count: parseFloat(d.count || 0),
+                    total_diskon: parseFloat(d.totalDiskon || 0),
                     saldo_akhir: saldoAkhir
                 })
             });
@@ -5356,12 +5444,14 @@ async function showClosingModal() {
                 shiftStart,
                 waktuClosing: new Date().toLocaleString('id-ID'),
                 modalAwal,
-                kasTunai,
-                kasQris: d.qris || 0,
-                kasMasuk,
+                kasTunai: penjualanTunai,
+                kasQris: penjualanQris,
+                kasMasuk: kasMasukHariIni,
                 kasKeluar,
-                totalTransaksi: d.count || 0,
-                totalDiskon: d.totalDiskon || 0,
+                salesToday,
+                saldoFisikTunai,
+                totalTransaksi: parseFloat(d.count || 0),
+                totalDiskon: parseFloat(d.totalDiskon || 0),
                 saldoAkhir
             };
 
@@ -5467,7 +5557,27 @@ function printStrukClosing(data) {
 
         <hr class="hrd">
 
-        <!-- RINCIAN KAS -->
+        <!-- RINCIAN OMZET / SALES TODAY -->
+        <div class="b f10 uc" style="margin-bottom:3px">Rincian Omzet (Sales Today)</div>
+        <table>
+            <tr>
+                <td class="f10">+ Penjualan Tunai</td>
+                <td class="tr f10">Rp ${_rp(data.kasTunai)}</td>
+            </tr>
+            <tr>
+                <td class="f10">+ Penjualan QRIS</td>
+                <td class="tr f10">Rp ${_rp(data.kasQris)}</td>
+            </tr>
+            <tr><td colspan="2"><hr class="hrd"></td></tr>
+            <tr>
+                <td class="f10 b">TOTAL OMZET</td>
+                <td class="tr f10 b">Rp ${_rp(data.salesToday || (parseFloat(data.kasTunai||0) + parseFloat(data.kasQris||0)))}</td>
+            </tr>
+        </table>
+
+        <hr class="hrd">
+
+        <!-- RINCIAN KAS LACI -->
         <div class="b f10 uc" style="margin-bottom:3px">Rincian Kas Laci</div>
         <table>
             <tr>
@@ -5475,22 +5585,21 @@ function printStrukClosing(data) {
                 <td class="tr f10">Rp ${_rp(data.modalAwal)}</td>
             </tr>
             <tr>
-                <td class="f10">+ Tunai Masuk</td>
+                <td class="f10">(+) Penjualan Tunai</td>
                 <td class="tr f10">Rp ${_rp(data.kasTunai)}</td>
             </tr>
-            ${(data.kasMasuk > 0) ? `
             <tr>
-                <td class="f10">+ Kas Masuk</td>
+                <td class="f10">(+) Kas Masuk Lain</td>
                 <td class="tr f10">Rp ${_rp(data.kasMasuk)}</td>
-            </tr>` : ''}
+            </tr>
             <tr>
-                <td class="f10">- Kas Keluar</td>
+                <td class="f10">(-) Kas Keluar</td>
                 <td class="tr f10">Rp ${_rp(data.kasKeluar)}</td>
             </tr>
             <tr><td colspan="2"><hr class="hrd"></td></tr>
             <tr>
-                <td class="f10">QRIS (Non-Tunai)</td>
-                <td class="tr f10">Rp ${_rp(data.kasQris)}</td>
+                <td class="f10 b">(=) SALDO FISIK LACI</td>
+                <td class="tr f10 b">Rp ${_rp(data.saldoAkhir)}</td>
             </tr>
         </table>
 
@@ -5499,7 +5608,7 @@ function printStrukClosing(data) {
         <!-- SALDO AKHIR - HIGHLIGHT UTAMA -->
         <table>
             <tr>
-                <td class="bb f11">SALDO LACI AKHIR</td>
+                <td class="bb f11">SALDO FISIK LACI</td>
                 <td class="tr bb f13">Rp ${_rp(data.saldoAkhir)}</td>
             </tr>
         </table>
