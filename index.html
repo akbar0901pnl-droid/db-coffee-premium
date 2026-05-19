@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>D&B COFFEE PREMIUM - POS SYSTEM v4.0</title>
+    <title>D&B COFFEE PREMIUM - POS SYSTEM v5.0</title>
     <link rel="icon" type="image/png" href="https://lh3.googleusercontent.com/d/1sFNzWtyPaHf5h1VR0qvOHirmzA1fRZUD">
     <link rel="apple-touch-icon" href="https://lh3.googleusercontent.com/d/1sFNzWtyPaHf5h1VR0qvOHirmzA1fRZUD">
     <meta name="mobile-web-app-capable" content="yes">
@@ -275,11 +275,457 @@
         border-bottom: 1px solid #eee;
     }
 
+    /* =====================================================
+       MOBILE-FIRST RESPONSIVE - PATCH v2.0 (Enhanced)
+       ===================================================== */
+
+    /* --- HAMBURGER BUTTON --- */
+    #hamburger-btn {
+        display: none;
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        z-index: 1100;
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: var(--primary);
+        color: #fff;
+        border: none;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        box-shadow: 0 4px 12px rgba(0,0,0,.3);
+        cursor: pointer;
+        transition: background .2s;
+    }
+    #hamburger-btn:hover { background: #1e293b; }
+
+    /* --- SIDEBAR OVERLAY --- */
+    #sidebar-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.55);
+        z-index: 999;
+        backdrop-filter: blur(2px);
+    }
+    #sidebar-overlay.active { display: block; }
+
+    /* --- TABLE RESPONSIVE OVERRIDE --- */
+    .table-responsive {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* --- TOUCH TARGET: min 44px --- */
+    .btn, .sidebar-link, .meja-card, .prod-card,
+    button, input[type="button"], input[type="submit"],
+    .qty-btn {
+        min-height: 44px;
+    }
+    .qty-btn {
+        width: 36px !important;
+        height: 36px !important;
+    }
+
+    /* =====================================================
+       BREAKPOINT ≥ 992px  →  Desktop: sidebar always visible
+       ===================================================== */
+    @media (min-width: 992px) {
+        #sidebar-overlay { display: none !important; }
+        .sidebar {
+            transform: none !important;
+            transition: none !important;
+        }
+        #grid-produk {
+            display: grid !important;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+        }
+        #grid-produk > * {
+            width: 100% !important; flex: unset !important;
+            max-width: 100% !important; padding: 0 !important;
+        }
+        #grid-meja {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+            gap: 12px;
+        }
+        #grid-meja > * {
+            width: 100% !important; flex: unset !important;
+            max-width: 100% !important; padding: 0 !important;
+        }
+    }
+
+    /* =====================================================
+       BREAKPOINT < 992px  →  Mobile / Tablet
+       ===================================================== */
+    @media (max-width: 991.98px) {
+
+        /* --- Hamburger visible --- */
+        #hamburger-btn { display: flex; }
+
+        /* --- Sidebar: off-canvas drawer --- */
+        .sidebar {
+            transform: translateX(-100%);
+            transition: transform .3s cubic-bezier(.4,0,.2,1);
+            display: flex !important;
+            z-index: 1050;
+        }
+        .sidebar.open { transform: translateX(0); }
+
+        /* --- Main content --- */
+        .main-content {
+            margin-left: 0 !important;
+            padding: 14px 12px 80px !important;
+            padding-top: 66px !important;
+        }
+
+        /* --- Page-level headers: stack title + actions --- */
+        .d-flex.justify-content-between.align-items-center.mb-4,
+        .d-flex.justify-content-between.align-items-center.mb-3 {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 10px !important;
+        }
+        .d-flex.justify-content-between.align-items-center.mb-4 > .d-flex,
+        .d-flex.justify-content-between.align-items-center.mb-3 > .d-flex {
+            width: 100%;
+            flex-wrap: wrap;
+            gap: 6px !important;
+        }
+        .d-flex.justify-content-between.align-items-center.mb-4 > .d-flex .btn,
+        .d-flex.justify-content-between.align-items-center.mb-3 > .d-flex .btn {
+            flex: 1 1 auto;
+            min-width: 0;
+            font-size: 12px !important;
+            padding: 8px 10px !important;
+        }
+
+        /* --- Dashboard toolbar: fully stacked --- */
+        #page-dash > .d-flex.justify-content-between {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 8px !important;
+        }
+        #page-dash > .d-flex.justify-content-between > .d-flex {
+            flex-wrap: wrap;
+            gap: 6px !important;
+        }
+        /* Date range input group: full width */
+        #page-dash .input-group.input-group-sm.shadow-sm {
+            width: 100% !important;
+            flex: 1 1 100%;
+        }
+        /* Dashboard button groups: equal width */
+        #page-dash .btn-group.shadow-sm {
+            flex: 1 1 auto;
+        }
+        #page-dash .btn-group.shadow-sm .btn {
+            font-size: 11px !important;
+            padding: 6px 8px !important;
+        }
+
+        /* --- SHIFT STATUS BAR: compact mobile layout --- */
+        #dash-shift-bar {
+            flex-direction: column !important;
+            gap: 10px !important;
+            padding: 14px !important;
+        }
+        #dash-shift-bar > div:first-child {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px !important;
+            width: 100%;
+        }
+        #dash-shift-bar > div:first-child > div {
+            padding: 8px 10px !important;
+            border-radius: 10px !important;
+        }
+        #dash-shift-bar > button {
+            width: 100% !important;
+            justify-content: center;
+        }
+
+        /* --- STAT CARDS: 2-column grid --- */
+        #page-dash > .row.g-3 > [class*="col-md-3"] {
+            flex: 0 0 50%;
+            max-width: 50%;
+        }
+        #page-dash > .row.g-3 > [class*="col-md-6"] {
+            flex: 0 0 100%;
+            max-width: 100%;
+        }
+        .stat-card {
+            padding: 14px !important;
+            gap: 10px !important;
+        }
+        .stat-card h4 { font-size: 1rem !important; }
+        .stat-icon { width: 38px !important; height: 38px !important; font-size: 16px !important; }
+
+        /* --- MINI CARDS (saldo): stack full width --- */
+        #page-dash > .row.g-3.mb-3 > [class*="col-md-6"] {
+            flex: 0 0 100%;
+            max-width: 100%;
+        }
+        .mini-card { padding: 12px 14px !important; }
+        .mini-card .value { font-size: 1rem !important; }
+
+        /* --- CHARTS: stack full width --- */
+        #page-dash > .row.g-3.mb-4 > [class*="col-md-7"],
+        #page-dash > .row.g-3.mb-4 > [class*="col-md-5"],
+        #page-dash > .row.g-3.mb-4 > [class*="col-md-8"],
+        #page-dash > .row.g-3.mb-4 > [class*="col-md-4"] {
+            flex: 0 0 100%;
+            max-width: 100%;
+        }
+        #page-dash > .row.g-3.mb-4 canvas { max-height: 200px !important; }
+
+        /* --- ABSEN LOG TABLE: compact --- */
+        #list-absen-log td, #list-absen-log th { white-space: nowrap; }
+
+        /* --- POS: MEJA GRID --- */
+        #grid-meja {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+            gap: 8px;
+        }
+        #grid-meja > * {
+            width: 100% !important; flex: unset !important;
+            max-width: 100% !important; padding: 0 !important;
+        }
+        .meja-card { height: 78px !important; font-size: 11px !important; }
+
+        /* --- POS: DENAH heading + take away button --- */
+        #view-meja > .d-flex.justify-content-between.mb-4 {
+            flex-direction: row !important;   /* keep side by side for meja */
+            align-items: center !important;
+        }
+
+        /* --- POS: KASIR VIEW – product list above cart --- */
+        #view-kasir > .row > .col-md-8,
+        #view-kasir > .row > .col-md-4 {
+            flex: 0 0 100%;
+            max-width: 100%;
+        }
+        #view-kasir > .row > .col-md-4 .dash-card {
+            position: static !important;
+        }
+        /* Product grid height capped, scrollable */
+        #grid-produk {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+            gap: 8px;
+            max-height: 52vw !important;
+            overflow-y: auto;
+        }
+        #grid-produk > * {
+            width: 100% !important; flex: unset !important;
+            max-width: 100% !important; padding: 0 !important;
+        }
+        .prod-card { padding: 10px 8px !important; font-size: 11px !important; }
+
+        /* Cart action buttons: 2-per-row grid */
+        #view-kasir .d-grid.gap-2 .row.g-2 { --bs-gutter-x: 0.4rem; }
+        #view-kasir .d-grid .btn { font-size: 13px !important; }
+
+        /* --- PRODUK MGMT GRID --- */
+        #grid-produk-mgmt {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 10px;
+        }
+        #grid-produk-mgmt > * {
+            width: 100% !important; flex: unset !important;
+            max-width: 100% !important; padding: 0 !important;
+        }
+        /* Produk mgmt filter row: stack */
+        #page-produk-mgmt .card-body .row.g-2 > [class*="col-md"] {
+            flex: 0 0 100%;
+            max-width: 100%;
+        }
+        /* Produk mgmt stat pills: 2 col */
+        #page-produk-mgmt .row.g-3.mb-4 > .col-6 {
+            flex: 0 0 50%;
+            max-width: 50%;
+        }
+
+        /* --- INVENTORY GRID --- */
+        #grid-inventory {
+            display: grid !important;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 10px;
+        }
+        #grid-inventory > * {
+            width: 100% !important; flex: unset !important;
+            max-width: 100% !important; padding: 0 !important;
+        }
+        /* Inventory stat cards: 2 col */
+        #page-inventory .row.g-3.mb-4 > [class*="col-md-3"] {
+            flex: 0 0 50%;
+            max-width: 50%;
+        }
+
+        /* --- HISTORY / PRODUK TERJUAL filter: stack --- */
+        #page-history .card-body .row.g-2 > [class*="col-md"],
+        #page-produk-terjual .row.g-2 > [class*="col-md"] {
+            flex: 0 0 100%;
+            max-width: 100%;
+        }
+        /* History header row */
+        #page-history > .sticky-top > .d-flex {
+            flex-direction: row !important;
+            align-items: center !important;
+        }
+
+        /* --- ADMIN PAGES: stack columns --- */
+        #page-cabang-mgmt .row > [class*="col-md"],
+        #page-shift-mgmt .row > [class*="col-md"],
+        #page-user-mgmt .row > [class*="col-md"],
+        #page-rekap-shift .row > [class*="col-md"] {
+            flex: 0 0 100%;
+            max-width: 100%;
+        }
+        /* Shift mgmt stat cards: 3-col unchanged (already col-md-4) */
+        #page-shift-mgmt .row.g-3.mb-4 > [class*="col-md-4"] {
+            flex: 0 0 100%;
+            max-width: 100%;
+        }
+
+        /* --- PERFORMA KASIR: 1 col --- */
+        #kasir-performance-list > [class*="col-md"] {
+            flex: 0 0 100%;
+            max-width: 100%;
+        }
+
+        /* --- ABSEN CARD: better mobile padding --- */
+        .absen-card { padding: 28px 20px !important; }
+
+        /* --- REKAP SHIFT: stacked header --- */
+        #page-rekap-shift .dash-card > .d-flex { flex-wrap: wrap; gap: 8px; }
+
+        /* --- Modals: full-width on small screens --- */
+        .modal-dialog { margin: 8px auto !important; }
+        .modal-content { border-radius: 14px !important; }
+    }
+
+    /* =====================================================
+       BREAKPOINT < 768px  →  Small phones
+       ===================================================== */
+    @media (max-width: 767.98px) {
+        .login-container {
+            flex-direction: column;
+            width: 95vw !important;
+            height: auto !important;
+            min-height: unset;
+        }
+        .login-brand { display: none !important; }
+        .login-form-area {
+            padding: 32px 22px !important;
+            width: 100% !important;
+            flex: unset;
+        }
+
+        /* Shift bar: 2-col info grid */
+        #dash-shift-bar > div:first-child {
+            grid-template-columns: 1fr 1fr !important;
+        }
+
+        /* Modal full width */
+        .modal-dialog {
+            max-width: 100% !important;
+            margin: 8px !important;
+        }
+    }
+
+    /* =====================================================
+       BREAKPOINT < 576px  →  XS phones
+       ===================================================== */
+    @media (max-width: 575.98px) {
+        .main-content {
+            padding: 10px 8px 80px !important;
+            padding-top: 62px !important;
+        }
+
+        /* Stat cards on XS: keep 2-col but compact */
+        .stat-card { padding: 10px !important; gap: 8px !important; }
+        .stat-card .text-muted.small { font-size: 9px !important; }
+        .stat-card h4 { font-size: 0.9rem !important; }
+
+        /* Product grid: 2-col fixed on XS */
+        #grid-produk {
+            grid-template-columns: repeat(2, 1fr) !important;
+            max-height: 46vw !important;
+        }
+        /* Meja: 3-col on XS */
+        #grid-meja {
+            grid-template-columns: repeat(3, 1fr) !important;
+        }
+        .meja-card { height: 68px !important; font-size: 10px !important; }
+
+        /* Dashboard action buttons: 2x2 grid */
+        #page-dash > .d-flex.justify-content-between > .d-flex {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px !important;
+        }
+        #page-dash > .d-flex.justify-content-between > .d-flex .input-group.input-group-sm {
+            grid-column: 1 / -1;
+        }
+        #page-dash > .d-flex.justify-content-between > .d-flex .btn-group {
+            width: 100%;
+        }
+
+        /* Cart list height on XS */
+        #cart-list { max-height: 200px !important; }
+
+        /* POS produk search bar */
+        #view-kasir .input-group.mb-3 { margin-bottom: 8px !important; }
+
+        /* Page headers: tighter */
+        h4.fw-bold { font-size: 1rem !important; }
+        h5.fw-bold { font-size: 0.95rem !important; }
+
+        /* Absen card */
+        .absen-card { padding: 22px 16px !important; border-radius: 18px !important; }
+        .absen-badge { font-size: 10px !important; }
+
+        /* Dash card inner padding */
+        .dash-card { padding: 14px 12px !important; }
+
+        /* Tables: more compact font */
+        .table { font-size: 10px !important; }
+        .table th, .table td { padding: 6px 4px !important; }
+
+        /* Produk mgmt grid: 2-col */
+        #grid-produk-mgmt {
+            grid-template-columns: repeat(2, 1fr) !important;
+        }
+        /* Inventory grid: 2-col */
+        #grid-inventory {
+            grid-template-columns: repeat(2, 1fr) !important;
+        }
+        /* Shift bar: single col items on XS */
+        #dash-shift-bar > div:first-child {
+            grid-template-columns: 1fr 1fr !important;
+        }
+        #dash-shift-bar > div:first-child > div .fw-bold { font-size: 13px !important; }
+    }
+
     </style>
 </head>
 <body>
 <div id="loader"><div class="spinner-border text-primary"></div><div class="mt-2 fw-bold">Memproses Data...</div></div>
 <div id="section-to-print"></div>
+
+<!-- HAMBURGER BUTTON (mobile only) -->
+<button id="hamburger-btn" onclick="toggleSidebar()" aria-label="Buka Menu">
+    <i class="bi bi-list"></i>
+</button>
+
+<!-- SIDEBAR OVERLAY (mobile only) -->
+<div id="sidebar-overlay" onclick="closeSidebar()"></div>
 
 <!-- LOGIN -->
 <div id="login-page">
@@ -5990,6 +6436,37 @@ function showRiwayatPengeluaran() {
         customClass: { popup: "text-start" }
     });
 }
+
+// =============================================================
+// MOBILE SIDEBAR TOGGLE  (off-canvas drawer)
+// =============================================================
+function toggleSidebar() {
+    const sb = document.getElementById('sidebar');
+    const ov = document.getElementById('sidebar-overlay');
+    if (!sb) return;
+    sb.classList.contains('open') ? closeSidebar() : openSidebar();
+}
+function openSidebar() {
+    const sb = document.getElementById('sidebar');
+    const ov = document.getElementById('sidebar-overlay');
+    if (sb) sb.classList.add('open');
+    if (ov) ov.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+function closeSidebar() {
+    const sb = document.getElementById('sidebar');
+    const ov = document.getElementById('sidebar-overlay');
+    if (sb) sb.classList.remove('open');
+    if (ov) ov.classList.remove('active');
+    document.body.style.overflow = '';
+}
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.sidebar-link').forEach(function(link) {
+        link.addEventListener('click', function() {
+            if (window.innerWidth < 992) { closeSidebar(); }
+        });
+    });
+});
 </script>
 </body>
 </html>
