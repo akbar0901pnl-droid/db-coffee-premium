@@ -1732,7 +1732,7 @@
 // =============================================================
 // GLOBAL STATE
 // =============================================================
-const API_URL = "https://script.google.com/macros/s/AKfycbzKSKVqkRFdclTOB8kRMFk-UaMWQC-gyhn7sQpXvBCya_ttdpRoP4SD3x7LfPZsr7mH/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbztqAHcYIvtdSKC0OxXKGPgaVRXBt_LubvSOPgzlRfWL3m6rx83gp14kFNLfJMaK3Sn/exec";
 let DATA = { products:[], tables:[], history:[], expenses:[], modal:[], users:[], branches:[], shifts:[], absenLog:[], rekapShift:[] };
 let CART = [], AKTIF_MEJA = "", KASIR = "", TOTAL_CART = 0;
 let revChart = null, produkChart = null;
@@ -5478,7 +5478,7 @@ async function simpanPesanan() {
         await fetch(API_URL, {
             method: 'POST',
             body: JSON.stringify({
-                action:      'saveTransaction',
+                action:      'updateTableStatus', // bukan saveTransaction — tidak tulis history
                 table:       String(AKTIF_MEJA),
                 customer:    document.getElementById('cust-name').value || "Guest",
                 item_detail: `[${labelMeja}] ${detailTeks}`,
@@ -5486,7 +5486,7 @@ async function simpanPesanan() {
                 total:       TOTAL_CART,
                 status:      'Terisi',
                 kasir:       KASIR,
-                cabang:      activeCabang // FIXED: was localStorage.getItem('user_cabang') || ''
+                cabang:      activeCabang
             })
         });
         Swal.fire('Tersimpan', 'Pesanan berhasil diperbarui', 'success');
@@ -5515,7 +5515,7 @@ async function cancelPesananMeja() {
             await fetch(API_URL, {
                 method: 'POST',
                 body: JSON.stringify({
-                    action:      'saveTransaction',
+                    action:      'updateTableStatus', // bukan saveTransaction — tidak tulis history
                     table:       String(AKTIF_MEJA),
                     customer:    '',
                     item_detail: '',
@@ -5523,7 +5523,7 @@ async function cancelPesananMeja() {
                     total:       0,
                     status:      'Kosong',
                     kasir:       KASIR,
-                    cabang:      activeCabang // FIXED
+                    cabang:      activeCabang
                 })
             });
             resetDiscountUI();
@@ -5690,7 +5690,7 @@ async function konfirmasiPindahMeja(mejaTujuan) {
         await fetch(API_URL, {
             method: 'POST',
             body: JSON.stringify({
-                action:      'saveTransaction',
+                action:      'updateTableStatus', // bukan saveTransaction — tidak tulis history
                 table:       String(mejaTujuan),
                 customer:    custName,
                 item_detail: `[MEJA ${mejaTujuan}] ${detailTeks}`,
@@ -5698,7 +5698,7 @@ async function konfirmasiPindahMeja(mejaTujuan) {
                 total:       0,
                 status:      'Terisi',
                 kasir:       KASIR,
-                cabang:      activeCabang // FIXED
+                cabang:      activeCabang
             })
         });
 
@@ -5706,7 +5706,7 @@ async function konfirmasiPindahMeja(mejaTujuan) {
         await fetch(API_URL, {
             method: 'POST',
             body: JSON.stringify({
-                action:      'saveTransaction',
+                action:      'updateTableStatus', // bukan saveTransaction — tidak tulis history
                 table:       String(AKTIF_MEJA),
                 customer:    '',
                 item_detail: '',
@@ -5714,7 +5714,7 @@ async function konfirmasiPindahMeja(mejaTujuan) {
                 total:       0,
                 status:      'Kosong',
                 kasir:       KASIR,
-                cabang:      activeCabang // FIXED
+                cabang:      activeCabang
             })
         });
 
@@ -5854,8 +5854,8 @@ async function showClosingModal() {
             // Wajib: metode bayar harus nilai valid, total > 0, sesuai cabang
             if (!ts || !METODE_VALID.includes(metode) || total <= 0 || !matchCabang) return false;
             // Admin/owner: hanya hitung transaksi yang field Kasir-nya = nama user ini
-            if (role === 'admin') {
-                return kasirTrx.toLowerCase() === userNama.toLowerCase();
+            if (role === 'admin' || role === 'owner') {
+                return kasirTrx.toLowerCase() === userNama.toLowerCase() && new Date(ts) >= wa;
             }
             // Kasir biasa: filter berdasarkan waktu absen shift
             return new Date(ts) >= wa;
