@@ -2297,10 +2297,19 @@ function updateDashboard() {
     const filteredExp = filterByCabang(filterByDate(DATA.expenses || []), 'Cabang');
     const filteredModal = filterByCabang(filterByDate(DATA.modal || []), 'Cabang');
 
-    const totalSales = filteredHistoryFinal.reduce((s,i) => s + Number(i.Total_Harga || i.total_harga || 0), 0);
-    const totalTunaiAll = filteredHistoryFinal.filter(h => (h.Metode_Bayar || h.metode_bayar) === "Tunai")
+    // [BUG FIX] Filter hanya transaksi TERBAYAR: metode exact match + total > 0
+    // Mencegah pesanan pending/reset ikut terhitung di semua kalkulasi dashboard
+    const METODE_BAYAR_VALID = ['Tunai', 'QRIS', 'Transfer'];
+    const paidHistory = filteredHistoryFinal.filter(h => {
+        const metode = (h.Metode_Bayar || h.metode_bayar || '').toString().trim();
+        const total  = Number(h.Total_Harga || h.total_harga || 0);
+        return METODE_BAYAR_VALID.includes(metode) && total > 0;
+    });
+
+    const totalSales = paidHistory.reduce((s,i) => s + Number(i.Total_Harga || i.total_harga || 0), 0);
+    const totalTunaiAll = paidHistory.filter(h => (h.Metode_Bayar || h.metode_bayar) === "Tunai")
                             .reduce((s,i) => s + Number(i.Total_Harga || i.total_harga || 0), 0);
-    const totalQRIS = filteredHistoryFinal.filter(h => ["QRIS","Transfer"].includes(h.Metode_Bayar || h.metode_bayar))
+    const totalQRIS = paidHistory.filter(h => ["QRIS","Transfer"].includes(h.Metode_Bayar || h.metode_bayar))
                         .reduce((s,i) => s + Number(i.Total_Harga || i.total_harga || 0), 0);
     const totalKeluarAll = filteredExp.reduce((s,i) => s + Number(i.Nominal || i.nominal || 0), 0);
 
@@ -2393,7 +2402,7 @@ function updateDashboard() {
     };
 
     setEl('dash-sales', "Rp " + totalSales.toLocaleString());
-    setEl('dash-orders', filteredHistoryFinal.length);
+    setEl('dash-orders', paidHistory.length);
     setEl('dash-saldo-tunai', "Rp " + saldoFisik.toLocaleString());
     setEl('dash-saldo-qris', "Rp " + totalQRIS.toLocaleString());
     // Kas masuk manual digunakan untuk saldo fisik laci (sudah dihitung di atas)
@@ -2414,10 +2423,11 @@ function updateDashboard() {
 
     if (role !== 'admin') loadActiveShift();
     
-    renderRevenueChart(filteredHistoryFinal);
-    renderProdukChart(filteredHistoryFinal);
-    renderBestSeller(filteredHistoryFinal);
+    renderRevenueChart(paidHistory);
+    renderProdukChart(paidHistory);
+    renderBestSeller(paidHistory);
     renderStockAlert();
+    renderKasirPerformance(paidHistory);
 
     const gabungLog = [
         ...filteredModal.map(m => ({...m, Tipe:'Masuk', Jumlah: m.Jumlah || m.jumlah})),
@@ -2426,6 +2436,83 @@ function updateDashboard() {
     renderRiwayatKas(gabungLog);
     renderAbsenLog(DATA.absenLog || []);
     renderRecentOrders();   // ← Tambahkan baris ini
+}
+
+// =============================================================
+// PERFORMA KASIR — Dashboard
+// =============================================================
+function renderKasirPerformance(filteredHistory) {
+    const el = document.getElementById('kasir-performance-list');
+    if (!el) return;
+
+    const role         = (localStorage.getItem('user_role') || 'Kasir').toLowerCase();
+    const userNama     = (localStorage.getItem('user_nama') || '').trim();
+    const waktuAbsen   = localStorage.getItem('shift_start_iso');
+    const wa           = waktuAbsen ? new Date(waktuAbsen) : null;
+
+    // Agregasi per kasir — hanya transaksi TERBAYAR (metode valid + total > 0)
+    // Metode valid: Tunai, QRIS, Transfer (exact, bukan fallback/default)
+    const METODE_VALID_PERF = ['tunai', 'qris', 'transfer'];
+    const kasirMap = {};
+    (filteredHistory || []).forEach(h => {
+        const metodeRaw  = (h.Metode_Bayar || h.metode_bayar || '').toString().trim();
+        const metode     = metodeRaw.toLowerCase();
+        const total      = Number(h.Total_Harga || h.total_harga || 0);
+        // Skip: belum terbayar (metode tidak valid) atau total nol/negatif
+        if (!METODE_VALID_PERF.includes(metode) || total <= 0) return;
+        const ts         = h.Timestamp || h.timestamp || h.Waktu || h.waktu;
+        const kasirField = (h.Kasir || h.kasir || '').toString().trim();
+
+        // Untuk kasir biasa: hanya hitung transaksi miliknya sendiri sejak absen shift
+        if (role !== 'admin') {
+            if (userNama && kasirField.toLowerCase() !== userNama.toLowerCase()) return;
+            if (wa && ts && new Date(ts) < wa) return;
+        }
+        // Untuk admin: tampilkan semua kasir sesuai field Kasir di data (apa adanya)
+        const nama = kasirField || 'Tidak Diketahui';
+        if (!kasirMap[nama]) kasirMap[nama] = { transaksi: 0, omset: 0, tunai: 0, qris: 0 };
+        kasirMap[nama].transaksi += 1;
+        kasirMap[nama].omset    += total;
+        if (metode === 'tunai')                              kasirMap[nama].tunai += total;
+        if (['qris','transfer'].includes(metode))            kasirMap[nama].qris  += total;
+    });
+
+    const sorted = Object.entries(kasirMap).sort((a,b) => b[1].omset - a[1].omset);
+
+    if (sorted.length === 0) {
+        el.innerHTML = '<div class="col-12 text-center text-muted py-4"><i class="bi bi-person-x fs-3 d-block mb-2 opacity-50"></i><small>Belum ada data transaksi pada periode ini</small></div>';
+        return;
+    }
+
+    const colors = ['#7c3aed','#3b82f6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16'];
+    el.innerHTML = sorted.map(([nama, data], i) => {
+        const color = colors[i % colors.length];
+        const initial = nama.charAt(0).toUpperCase();
+        return `
+        <div class="col-md-6 mb-3">
+            <div style="background:#f8fafc;border-radius:14px;padding:14px 16px;border-left:4px solid ${color};border:1px solid #e2e8f0">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <div style="width:36px;height:36px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;flex-shrink:0">${initial}</div>
+                    <div style="overflow:hidden">
+                        <div class="fw-bold text-dark" style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nama}</div>
+                        <div class="text-muted" style="font-size:10px">${data.transaksi} transaksi selesai</div>
+                    </div>
+                    <div class="ms-auto text-end">
+                        <div class="fw-bold" style="font-size:13px;color:${color}">Rp ${data.omset.toLocaleString('id-ID')}</div>
+                        <div class="text-muted" style="font-size:10px">Omset</div>
+                    </div>
+                </div>
+                <div class="d-flex gap-2" style="font-size:10px">
+                    <span style="background:#dcfce7;color:#166534;border-radius:8px;padding:2px 8px;font-weight:700">
+                        <i class="bi bi-cash me-1"></i>Tunai: Rp ${data.tunai.toLocaleString('id-ID')}
+                    </span>
+                    <span style="background:#eff6ff;color:#1d4ed8;border-radius:8px;padding:2px 8px;font-weight:700">
+                        <i class="bi bi-qr-code me-1"></i>QRIS: Rp ${data.qris.toLocaleString('id-ID')}
+                    </span>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
 }
 
 function renderAbsenLog(logs) {
@@ -5750,8 +5837,29 @@ async function showClosingModal() {
         const penjualanQris  = parseFloat(d.qris       || d.totalQris   || 0); // Total Penjualan QRIS hari ini
         const kasKeluar      = parseFloat(d.totalKeluar || d.kas_keluar || 0); // Total Pengeluaran / Kas Keluar
 
-        // [BUG FIX] Hitung Kas Masuk dari DATA.modal lokal (filter cabang + sejak absen)
-        const wa = new Date(waktuAbsen);
+        // [BUG FIX] Hitung Total Transaksi hanya dari transaksi yang sudah TERBAYAR
+        // Kriteria ketat: Metode_Bayar HARUS salah satu nilai valid ('Tunai','QRIS','Transfer')
+        // DAN Total_Harga > 0 — mencegah pesanan pending/reset ikut terhitung
+        const METODE_VALID = ['tunai', 'qris', 'transfer'];
+        const wa   = new Date(waktuAbsen);
+        const role = (localStorage.getItem('user_role') || 'Kasir').toLowerCase();
+        const totalTransaksiTerbayar = (DATA.history || []).filter(h => {
+            const ts        = h.Timestamp || h.timestamp || h.Waktu || h.waktu;
+            const metodeRaw = (h.Metode_Bayar || h.metode_bayar || '').toString().trim();
+            const metode    = metodeRaw.toLowerCase();
+            const total     = Number(h.Total_Harga || h.total_harga || 0);
+            const cab       = (h.Cabang || h.cabang || '').toString();
+            const kasirTrx  = (h.Kasir || h.kasir || '').toString().trim();
+            const matchCabang = !activeCabang || cab === activeCabang;
+            // Wajib: metode bayar harus nilai valid, total > 0, sesuai cabang
+            if (!ts || !METODE_VALID.includes(metode) || total <= 0 || !matchCabang) return false;
+            // Admin/owner: hanya hitung transaksi yang field Kasir-nya = nama user ini
+            if (role === 'admin') {
+                return kasirTrx.toLowerCase() === userNama.toLowerCase();
+            }
+            // Kasir biasa: filter berdasarkan waktu absen shift
+            return new Date(ts) >= wa;
+        }).length;
         const kasMasukShift = (DATA.modal || []).filter(m => {
             const ts   = m.Timestamp || m.timestamp || m.Waktu || m.waktu;
             const tipe = (m.Tipe || m.tipe || '').toLowerCase();
@@ -5796,7 +5904,7 @@ async function showClosingModal() {
                     <!-- 🧾 Total Transaksi -->
                     <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9">
                         <span style="color:#64748b;font-size:13px">🧾 Total Transaksi</span>
-                        <strong style="font-size:13px">${parseFloat(d.count || 0)} kali</strong>
+                        <strong style="font-size:13px">${totalTransaksiTerbayar} kali</strong>
                     </div>
 
                     <!-- + Penjualan Tunai -->
@@ -5871,7 +5979,7 @@ async function showClosingModal() {
                     keluar: kasKeluar,
                     sales_today: salesToday,
                     saldo_fisik_tunai: saldoFisikTunai,
-                    count: parseFloat(d.count || 0),
+                    count: totalTransaksiTerbayar,
                     total_diskon: parseFloat(d.totalDiskon || 0),
                     saldo_akhir: saldoAkhir
                 })
@@ -5903,7 +6011,7 @@ async function showClosingModal() {
                 kasKeluar,
                 salesToday,
                 saldoFisikTunai,
-                totalTransaksi: parseFloat(d.count || 0),
+                totalTransaksi: totalTransaksiTerbayar,
                 totalDiskon: parseFloat(d.totalDiskon || 0),
                 saldoAkhir
             };
