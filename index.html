@@ -3,15 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>D&B COFFEE PREMIUM - POS SYSTEM v5.0</title>
-    <link rel="manifest" href="manifest.json">
-	<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-	<link rel="apple-touch-icon" href="icon-512.png">
+    <title>D&amp;B COFFEE PREMIUM - POS SYSTEM v5.0</title>
+
+    <!-- ═══════════════════════════════════════════════════
+         PWA SETUP — ikon dari Google Drive, embed otomatis
+    ═══════════════════════════════════════════════════ -->
+
+    <!-- Favicon & Apple Touch Icon (langsung pakai URL) -->
+    <link rel="icon" type="image/png" href="https://drive.google.com/uc?export=view&id=11ibxHxUl0A9kpwCrxdXRiIk0n5pJye52">
+    <link rel="apple-touch-icon" sizes="180x180" href="https://drive.google.com/uc?export=view&id=11ibxHxUl0A9kpwCrxdXRiIk0n5pJye52">
+    <link rel="apple-touch-icon" sizes="152x152" href="https://drive.google.com/uc?export=view&id=11ibxHxUl0A9kpwCrxdXRiIk0n5pJye52">
+    <link rel="apple-touch-icon" sizes="120x120" href="https://drive.google.com/uc?export=view&id=11ibxHxUl0A9kpwCrxdXRiIk0n5pJye52">
+
+    <!-- PWA Meta Tags -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="D&amp;B Coffee">
+    <meta name="application-name" content="D&amp;B Coffee POS">
     <meta name="theme-color" content="#0f172a">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <meta name="msapplication-TileColor" content="#0f172a">
+    <meta name="msapplication-TileImage" content="https://drive.google.com/uc?export=view&id=11ibxHxUl0A9kpwCrxdXRiIk0n5pJye52">
+
+    <!-- PWA Manifest — dibuat inline dengan fetch ikon ke base64 -->
+    <script>
+    (function() {
+      const ICON_URL = "https://drive.google.com/uc?export=view&id=11ibxHxUl0A9kpwCrxdXRiIk0n5pJye52";
+      const CACHE_KEY = "pwa_icon_b64";
+
+      function buildManifest(iconDataUrl) {
+        return {
+          "name": "D&B Coffee POS",
+          "short_name": "D&B Coffee",
+          "description": "D&B Coffee Premium POS System",
+          "start_url": ".",
+          "display": "standalone",
+          "background_color": "#0f172a",
+          "theme_color": "#0f172a",
+          "orientation": "portrait-primary",
+          "icons": [
+            { "src": iconDataUrl, "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+            { "src": iconDataUrl, "sizes": "192x192", "type": "image/png", "purpose": "any" }
+          ]
+        };
+      }
+
+      function injectManifest(iconDataUrl) {
+        const manifest = buildManifest(iconDataUrl);
+        const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = url;
+        document.head.appendChild(link);
+
+        // Update apple-touch-icon juga
+        document.querySelectorAll('link[rel="apple-touch-icon"]').forEach(el => {
+          el.href = iconDataUrl;
+        });
+        document.querySelectorAll('link[rel="icon"]').forEach(el => {
+          el.href = iconDataUrl;
+        });
+      }
+
+      // Cek cache dulu biar tidak fetch ulang tiap kali
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        injectManifest(cached);
+      } else {
+        // Fetch ikon, konversi ke base64
+        fetch(ICON_URL)
+          .then(r => r.blob())
+          .then(blob => new Promise((res, rej) => {
+            const reader = new FileReader();
+            reader.onloadend = () => res(reader.result);
+            reader.onerror = rej;
+            reader.readAsDataURL(blob);
+          }))
+          .then(dataUrl => {
+            try { localStorage.setItem(CACHE_KEY, dataUrl); } catch(e) {}
+            injectManifest(dataUrl);
+          })
+          .catch(() => {
+            // Fallback: pakai URL langsung jika fetch gagal
+            injectManifest(ICON_URL);
+          });
+      }
+    })();
+    </script>
+
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
