@@ -1,0 +1,16 @@
+{
+  "name": "D&B COFFEE PREMIUM",
+  "short_name": "D&B COFFEE",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "https://lh3.googleusercontent.com/d/11ibxHxUl0A9kpwCrxdXRiIk0n5pJye52=s512",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
