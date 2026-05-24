@@ -4,98 +4,155 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>D&B COFFEE PREMIUM - POS SYSTEM v5.0</title>
-    <!-- Favicon & PWA icons akan di-set secara dinamis via JS agar background transparan -->
-    <link rel="icon" id="dynamic-favicon" type="image/png" href="">
-    <link rel="apple-touch-icon" id="dynamic-apple-icon" href="">
-    <link rel="manifest" id="dynamic-manifest" href="">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0f172a">
     <script>
-    // === DYNAMIC TRANSPARENT ICON GENERATOR ===
-    // Memuat logo asli, menghapus background putih/terang, lalu menyuntikkan sebagai favicon & PWA icon
-    (function() {
-        const LOGO_URL = 'https://lh3.googleusercontent.com/d/11ibxHxUl0A9kpwCrxdXRiIk0n5pJye52';
-        const ICON_SIZE = 512;
+    // =====================================================================
+    // PWA ICON MANAGER — Transparan, bekerja saat install di desktop Chrome
+    // Strategi:
+    //   1. Load logo via Canvas + hapus background putih → base64 PNG
+    //   2. Manifest di-inject sebagai <link> dengan href data:application/json
+    //      (Chrome menerima data URI untuk manifest pada file:// & http://)
+    //   3. Favicon & apple-touch-icon di-inject dari base64 yang sama
+    // =====================================================================
+    (function () {
+        const LOGO_URL  = 'https://lh3.googleusercontent.com/d/11ibxHxUl0A9kpwCrxdXRiIk0n5pJye52';
+        const SIZE      = 512;
+        const THRESHOLD = 40; // agresifitas penghapusan bg (0-255)
 
-        function removeBg(canvas, ctx, threshold) {
-            // Ambil warna pojok kiri-atas sebagai referensi background
-            const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const px = data.data;
-            const bgR = px[0], bgG = px[1], bgB = px[2];
-            for (let i = 0; i < px.length; i += 4) {
-                const dr = Math.abs(px[i]   - bgR);
-                const dg = Math.abs(px[i+1] - bgG);
-                const db = Math.abs(px[i+2] - bgB);
-                if (dr < threshold && dg < threshold && db < threshold) {
-                    // Piksel sangat dekat warna background → jadikan transparan
-                    const dist = Math.max(dr, dg, db);
-                    const alpha = Math.round((dist / threshold) * 255);
-                    px[i+3] = alpha;
+        /* Hapus background warna solid dari canvas */
+        function removeBg(ctx, w, h) {
+            const id = ctx.getImageData(0, 0, w, h);
+            const d  = id.data;
+            // Sampel 4 sudut untuk deteksi warna bg yang lebih akurat
+            const samples = [
+                [d[0], d[1], d[2]],
+                [d[(w-1)*4], d[(w-1)*4+1], d[(w-1)*4+2]],
+                [d[(h-1)*w*4], d[(h-1)*w*4+1], d[(h-1)*w*4+2]],
+                [d[((h-1)*w + w-1)*4], d[((h-1)*w + w-1)*4+1], d[((h-1)*w + w-1)*4+2]]
+            ];
+            // Rata-rata warna sudut
+            const bgR = Math.round(samples.reduce((s,c)=>s+c[0],0)/4);
+            const bgG = Math.round(samples.reduce((s,c)=>s+c[1],0)/4);
+            const bgB = Math.round(samples.reduce((s,c)=>s+c[2],0)/4);
+
+            for (let i = 0; i < d.length; i += 4) {
+                const dr = Math.abs(d[i]   - bgR);
+                const dg = Math.abs(d[i+1] - bgG);
+                const db = Math.abs(d[i+2] - bgB);
+                const dist = Math.max(dr, dg, db);
+                if (dist < THRESHOLD) {
+                    // Semakin dekat ke bg → semakin transparan
+                    d[i+3] = Math.round((dist / THRESHOLD) * 255);
                 }
             }
-            ctx.putImageData(data, 0, 0);
+            ctx.putImageData(id, 0, 0);
         }
 
-        function buildManifestBlob(iconDataUrl) {
-            const manifest = {
-                name: "D&B Coffee POS",
-                short_name: "D&B POS",
-                start_url: "./",
-                display: "standalone",
-                background_color: "transparent",
-                theme_color: "#0f172a",
+        /* Inject semua link tag yang diperlukan */
+        function injectAll(base64png) {
+            const head = document.head;
+
+            // Hapus favicon lama jika ada
+            document.querySelectorAll('link[rel="icon"],link[rel="apple-touch-icon"],link[rel="manifest"]').forEach(el=>el.remove());
+
+            // Favicon
+            const fav = document.createElement('link');
+            fav.rel   = 'icon';
+            fav.type  = 'image/png';
+            fav.href  = base64png;
+            head.appendChild(fav);
+
+            // Apple touch icon
+            const ati = document.createElement('link');
+            ati.rel  = 'apple-touch-icon';
+            ati.href = base64png;
+            head.appendChild(ati);
+
+            // Web App Manifest sebagai data URI
+            // → Chrome/Edge membaca manifest data URI dengan benar untuk PWA install
+            const manifestObj = {
+                name:             "D&B Coffee Premium POS",
+                short_name:       "D&B POS",
+                description:      "Point of Sale System D&B Coffee",
+                start_url:        "./",
+                display:          "standalone",
+                orientation:      "any",
+                background_color: "#0f172a",
+                theme_color:      "#0f172a",
                 icons: [
-                    { src: iconDataUrl, sizes: "192x192", type: "image/png", purpose: "any maskable" },
-                    { src: iconDataUrl, sizes: "512x512", type: "image/png", purpose: "any maskable" }
+                    { src: base64png, sizes: "192x192", type: "image/png", purpose: "any" },
+                    { src: base64png, sizes: "512x512", type: "image/png", purpose: "any" },
+                    { src: base64png, sizes: "512x512", type: "image/png", purpose: "maskable" }
                 ]
             };
-            const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
-            return URL.createObjectURL(blob);
+            const manifestJson    = JSON.stringify(manifestObj);
+            const manifestDataURI = 'data:application/json;charset=utf-8,' + encodeURIComponent(manifestJson);
+
+            const mf = document.createElement('link');
+            mf.rel   = 'manifest';
+            mf.href  = manifestDataURI;
+            head.appendChild(mf);
+
+            console.log('[PWA] Icon transparan berhasil di-inject ✓');
         }
 
-        function applyIcons(dataUrl) {
-            // Favicon
-            const fi = document.getElementById('dynamic-favicon');
-            if (fi) fi.href = dataUrl;
-            // Apple touch icon
-            const ai = document.getElementById('dynamic-apple-icon');
-            if (ai) ai.href = dataUrl;
-            // Web App Manifest
-            const mf = document.getElementById('dynamic-manifest');
-            if (mf) mf.href = buildManifestBlob(dataUrl);
+        /* Fallback: gunakan URL langsung tanpa bg-removal (jika CORS gagal) */
+        function injectFallback() {
+            document.querySelectorAll('link[rel="icon"],link[rel="apple-touch-icon"],link[rel="manifest"]').forEach(el=>el.remove());
+            const head = document.head;
+
+            const fav = document.createElement('link');
+            fav.rel = 'icon'; fav.type = 'image/png'; fav.href = LOGO_URL;
+            head.appendChild(fav);
+
+            const ati = document.createElement('link');
+            ati.rel = 'apple-touch-icon'; ati.href = LOGO_URL;
+            head.appendChild(ati);
+
+            const manifestObj = {
+                name: "D&B Coffee Premium POS", short_name: "D&B POS",
+                start_url: "./", display: "standalone",
+                background_color: "#0f172a", theme_color: "#0f172a",
+                icons: [
+                    { src: LOGO_URL, sizes: "512x512", type: "image/png", purpose: "any maskable" }
+                ]
+            };
+            const mf = document.createElement('link');
+            mf.rel  = 'manifest';
+            mf.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifestObj));
+            head.appendChild(mf);
+            console.warn('[PWA] CORS gagal → fallback ke URL asli (bg mungkin tidak transparan)');
         }
 
-        function loadAndProcess() {
-            const img = new Image();
+        function run() {
+            const img    = new Image();
             img.crossOrigin = 'anonymous';
-            img.onload = function() {
-                const canvas = document.createElement('canvas');
-                canvas.width  = ICON_SIZE;
-                canvas.height = ICON_SIZE;
-                const ctx = canvas.getContext('2d');
-                // Pastikan canvas mulai bersih (transparan)
-                ctx.clearRect(0, 0, ICON_SIZE, ICON_SIZE);
-                ctx.drawImage(img, 0, 0, ICON_SIZE, ICON_SIZE);
-                // Hapus background; threshold 30 cukup untuk putih/near-white
-                removeBg(canvas, ctx, 30);
-                applyIcons(canvas.toDataURL('image/png'));
+            img.onload  = function () {
+                try {
+                    const cv  = document.createElement('canvas');
+                    cv.width  = SIZE; cv.height = SIZE;
+                    const ctx = cv.getContext('2d');
+                    ctx.clearRect(0, 0, SIZE, SIZE);
+                    ctx.drawImage(img, 0, 0, SIZE, SIZE);
+                    removeBg(ctx, SIZE, SIZE);
+                    injectAll(cv.toDataURL('image/png'));
+                } catch(e) {
+                    console.warn('[PWA] Canvas error:', e);
+                    injectFallback();
+                }
             };
-            img.onerror = function() {
-                // Fallback: gunakan URL asli jika gagal load (CORS block, dll)
-                applyIcons(LOGO_URL);
-                // Tetap set manifest minimal
-                const mf = document.getElementById('dynamic-manifest');
-                if (mf) mf.href = buildManifestBlob(LOGO_URL);
-            };
-            img.src = LOGO_URL;
+            img.onerror = function () { injectFallback(); };
+            // Tambahkan timestamp untuk bypass cache Google
+            img.src = LOGO_URL + (LOGO_URL.includes('?') ? '&' : '?') + '_t=' + Date.now();
         }
 
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', loadAndProcess);
+            document.addEventListener('DOMContentLoaded', run);
         } else {
-            loadAndProcess();
+            run();
         }
     })();
     </script>
