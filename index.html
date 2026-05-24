@@ -1263,7 +1263,7 @@
             <div style="z-index:3;position:relative">
                 <img src="https://lh3.googleusercontent.com/d/1qiyKZSuCfpSOjWq0ciH6wodGK9bLXDLW" alt="Logo" style="width:180px;height:auto;filter:drop-shadow(0 0 15px rgba(241,196,15,.3))" class="mb-4">
                 <h2 class="fw-bold m-0 text-uppercase" style="letter-spacing:3px;color:#f1c40f">D&B COFFEE</h2>
-                <p class="small opacity-75 mt-2">PREMIUM ROASTERY & POS SYSTEM v6.0</p>
+                <p class="small opacity-75 mt-2">PREMIUM ROASTERY & POS SYSTEM v4.0</p>
                 <div class="mt-4 mx-auto" style="width:40px;height:3px;background:#f1c40f"></div>
             </div>
         </div>
@@ -5528,8 +5528,12 @@ function printStrukSplit(paidItems, totalBayar, metode, sisaTagihan) {
     _doPrint(html);
 }
 
-// ── Eksekusi cetak ────────────────────────────────────────────────────────────
+// ── Eksekusi cetak — otomatis deteksi platform ───────────────────────────────
+// Desktop browser  → window.print() (dialog print browser)
+// Android Median   → gonative.print.printPage() (dialog print Android native)
+// ─────────────────────────────────────────────────────────────────────────────
 function _doPrint(bodyHtml) {
+    // 1. Tulis konten ke section-to-print (dipakai kedua platform)
     let el = document.getElementById('section-to-print');
     if (!el) {
         el = document.createElement('div');
@@ -5537,7 +5541,73 @@ function _doPrint(bodyHtml) {
         document.body.appendChild(el);
     }
     el.innerHTML = _style() + bodyHtml;
-    setTimeout(() => { window.focus(); window.print(); }, 450);
+
+    // 2. Deteksi platform
+    const isMedianApp = !!(
+        window.median      ||
+        window.gonative    ||
+        navigator.userAgent.toLowerCase().includes('gonative') ||
+        navigator.userAgent.toLowerCase().includes('median')
+    );
+
+    if (isMedianApp) {
+        // ── ANDROID / MEDIAN.CO ─────────────────────────────────────────────
+        // Buat halaman HTML mandiri dalam blob URL, lalu kirim ke Median print
+        setTimeout(() => {
+            try {
+                const fullHtml = `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<style>
+  @page { size: 58mm auto; margin: 0; }
+  body  { margin: 0; padding: 2mm; font-family: 'Courier New', monospace; font-size: 11px; color: #000; background: #fff; }
+  * { box-sizing: border-box; }
+</style>
+</head><body>${_style()}${bodyHtml}</body></html>`;
+
+                const blob    = new Blob([fullHtml], { type: 'text/html' });
+                const blobUrl = URL.createObjectURL(blob);
+
+                // Median.co / GoNative print API
+                if (window.gonative && gonative.print) {
+                    gonative.print.printPage({
+                        url: blobUrl,
+                        // Lepas blob setelah 30 detik
+                        callback: function() { URL.revokeObjectURL(blobUrl); }
+                    });
+                } else if (window.median && median.print) {
+                    median.print.printPage({
+                        url: blobUrl,
+                        callback: function() { URL.revokeObjectURL(blobUrl); }
+                    });
+                } else {
+                    // Fallback: buka di tab baru lalu trigger print (juga jalan di Android)
+                    const win = window.open(blobUrl, '_blank');
+                    if (win) {
+                        win.onload = function() {
+                            win.print();
+                            setTimeout(() => { win.close(); URL.revokeObjectURL(blobUrl); }, 1500);
+                        };
+                    } else {
+                        // Tab baru diblokir — fallback ke window.print standar
+                        window.focus();
+                        window.print();
+                        URL.revokeObjectURL(blobUrl);
+                    }
+                }
+            } catch(e) {
+                console.warn('[Print] Android print gagal, fallback ke window.print:', e);
+                window.focus();
+                window.print();
+            }
+        }, 400);
+
+    } else {
+        // ── DESKTOP BROWSER ─────────────────────────────────────────────────
+        // window.print() standar — @media print CSS sudah ada di _style()
+        setTimeout(() => { window.focus(); window.print(); }, 450);
+    }
 }
     
 // =============================================================
