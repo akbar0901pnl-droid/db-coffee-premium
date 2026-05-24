@@ -1198,18 +1198,29 @@
        ANDROID NATIVE APP FIXES — MEDIAN.CO v6.0
        ===================================================== */
 
-    /* Safe area untuk status bar Android (notch / punch-hole) */
+    /* Safe area: hamburger turun sesuai status bar */
     #hamburger-btn {
         top: calc(12px + env(safe-area-inset-top)) !important;
     }
+
+    /* Safe area: padding konten mobile */
     @media (max-width: 991.98px) {
         .main-content {
             padding-top: calc(66px + env(safe-area-inset-top)) !important;
             padding-bottom: calc(80px + env(safe-area-inset-bottom)) !important;
         }
+        /* Safe area sidebar — HARUS di dalam media query mobile
+           agar tidak menganggu transform translateX desktop */
+        .sidebar {
+            padding-top: env(safe-area-inset-top);
+        }
     }
-    .sidebar {
-        padding-top: env(safe-area-inset-top);
+
+    /* Safe area: sidebar desktop (tidak ada transform off-canvas) */
+    @media (min-width: 992px) {
+        .sidebar {
+            padding-top: env(safe-area-inset-top);
+        }
     }
 
     /* Hentikan kilap/flash saat tap */
@@ -1223,14 +1234,19 @@
     }
 
     /* Momentum scrolling untuk container scroll */
-    .table-responsive, #cart-list, #grid-produk, .sidebar,
+    .table-responsive, #cart-list, #grid-produk,
     .modal-body, .swal2-html-container {
         -webkit-overflow-scrolling: touch;
         overscroll-behavior: contain;
     }
+    /* Sidebar scroll terpisah — TIDAK pakai transform agar tidak bentrok */
+    .sidebar {
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+    }
 
-    /* Hardware acceleration untuk animasi */
-    .sidebar, .modal, .swal2-container, #absen-page, #login-page {
+    /* Hardware acceleration — HANYA untuk elemen yang tidak pakai translateX */
+    .modal, .swal2-container, #absen-page, #login-page {
         -webkit-transform: translateZ(0);
         transform: translateZ(0);
         will-change: transform;
