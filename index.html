@@ -616,16 +616,23 @@
         .stok-bar{height:6px;border-radius:3px;background:#e2e8f0;overflow:hidden;margin-top:6px}
         .stok-fill{height:100%;border-radius:3px;transition:width .3s}
         
-        /* PRINT */
-        #loader{display:none;position:fixed;inset:0;background:rgba(255,255,255,.8);z-index:10001;align-items:center;justify-content:center;flex-direction:column}
-        @media print{
-            body *{visibility:hidden}
-            #section-to-print,#section-to-print *{visibility:visible}
-            #section-to-print{position:absolute;left:0;top:0;width:58mm!important;font-family:'Courier New',Courier,monospace;color:black;margin-left:2mm!important;padding:0}
-            @page{size:58mm auto;margin:0}
+        /* PRINT — hanya untuk browser desktop (window.print()) */
+        /* Android APK menggunakan blob HTML terpisah via _doPrint()  */
+        #section-to-print { display:none; }
+        @media print {
+            @page { size:42mm auto; margin:0; }
+            body > *:not(#section-to-print) { display:none !important; visibility:hidden; }
+            #section-to-print {
+                display:block !important;
+                visibility:visible;
+                position:fixed;
+                left:0; top:0;
+                width:42mm !important;
+                margin:0 !important;
+                padding:0 !important;
+            }
+            #section-to-print * { visibility:visible; }
         }
-        #section-to-print{display:none}
-        @media print{#section-to-print{display:block}}
         
         /* SHIFT ABSEN */
         .kasir-shift-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px dashed #e2e8f0}
@@ -5171,7 +5178,7 @@ function modalKasMasuk()  { new bootstrap.Modal(document.getElementById('modalKa
 // simpanKasMasuk: see fixed version below
 
 // =============================================================
-// STRUK PRINT — THERMAL 58mm CLEAN & SHARP
+// STRUK PRINT — THERMAL 42mm CLEAN & SHARP
 // =============================================================
 
 // getCabangInfo: see fixed version below
@@ -5183,120 +5190,105 @@ const _tgl = () => new Date().toLocaleString('id-ID', {
 });
 
 // ── Style bersama ─────────────────────────────────────────────────────────────
+    // _style(): CSS struk thermal — berlaku datar (tanpa @media print wrapper)
+    // sehingga bekerja di blob Android (dirender langsung) DAN browser desktop
+    // (browser menggunakan @media print di bagian bawah fungsi ini).
     function _style() {
     return `<style>
-        @page { size:42mm auto; margin:0; }
+        /* ── RESET ─────────────────────────────────── */
+        * { box-sizing:border-box; margin:0; padding:0; }
 
-        @media screen { #section-to-print { display:none !important; } }
+        /* ── WRAPPER STRUK ─────────────────────────── */
+        .sk {
+            width:40mm;
+            margin:0 auto;
+            padding:2mm 1mm 4mm;
+            font-family:'Courier New', Courier, monospace;
+            font-size:10.5px;
+            font-weight:500;
+            line-height:1.3;
+            color:#000;
+            background:#fff;
+        }
 
+        /* ── LOGO ──────────────────────────────────── */
+        .sk-logo {
+            display:block;
+            width:64px;
+            height:64px;
+            object-fit:contain;
+            margin:0 auto 4px;
+            filter:grayscale(100%) contrast(16) brightness(0.9);
+            image-rendering:crisp-edges;
+            -webkit-print-color-adjust:exact;
+            print-color-adjust:exact;
+        }
+
+        /* ── TYPOGRAPHY ────────────────────────────── */
+        .b   { font-weight:700; }
+        .bb  { font-weight:800; }
+        .tc  { text-align:center; }
+        .tr  { text-align:right; }
+        .uc  { text-transform:uppercase; }
+        .f8  { font-size:8px; }
+        .f9  { font-size:9px; }
+        .f10 { font-size:10px; }
+        .f11 { font-size:11px; }
+        .f12 { font-size:12px; }
+        .f14 { font-size:13px; }
+
+        /* ── GARIS ──────────────────────────────────── */
+        .hrd { border:none; border-top:1px dashed #000; margin:3px 0; width:100%; display:block; }
+        .hrs { border:none; border-top:1.5px solid #000; margin:3px 0; width:100%; display:block; }
+
+        /* ── TABEL ──────────────────────────────────── */
+        table { width:100%; border-collapse:collapse; }
+        td    { padding:1px 0; vertical-align:top; line-height:1.3; }
+        .cl   { width:28%; }
+        .cs   { width:5%; }
+        .cv   { width:67%; }
+
+        /* ── BADGE & BOX ────────────────────────────── */
+        .badge {
+            display:inline-block;
+            border:1px solid #000;
+            padding:1px 5px;
+            font-size:8px;
+            font-weight:700;
+            letter-spacing:.5px;
+        }
+        .box-sisa {
+            border:1px solid #000;
+            text-align:center;
+            font-weight:700;
+            font-size:10px;
+            padding:3px 0;
+            margin:3px 0;
+        }
+
+        tr { page-break-inside:avoid; }
+
+        /* ── BROWSER DESKTOP: sembunyikan di layar ──── */
+        @media screen { .sk { display:none; } }
+
+        /* ── BROWSER DESKTOP: tampilkan saat print ──── */
         @media print {
+            @page { size:42mm auto; margin:0; }
             * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
-
             html, body {
                 width:42mm !important;
                 margin:0 !important; padding:0 !important;
-                height:auto !important;
                 background:#fff !important;
             }
-
             body > *:not(#section-to-print) { display:none !important; }
-
             #section-to-print {
                 display:block !important;
+                position:fixed !important;
+                left:0; top:0;
                 width:42mm !important;
-                margin:0 !important;
-                margin-left:0 !important;
-                padding:0 !important;
+                margin:0 !important; padding:0 !important;
             }
-
-            /* ── WRAPPER ──────────────────────────────── */
-            .sk {
-                width:40mm;              /* 42mm - 1mm kiri - 1mm kanan */
-                margin:0 auto;
-                padding:2mm 0 2mm;
-                font-family:'Courier New', Courier, monospace;
-                font-size:10px;          /* diperkecil menyesuaikan 42mm */
-                font-weight:550;
-                line-height:1.25;
-                color:#000;
-                background:#fff;
-            }
-
-            /* ── LOGO THERMAL SHARP ───────────────────── */
-            .sk-logo{
-                display:block;
-
-                /* ukuran diperbesar */
-                width:72px;
-                height:72px;
-
-                object-fit:contain;
-                margin:0 auto 4px;
-
-                /* optimasi thermal */
-                filter:
-                    grayscale(100%)
-                    contrast(18)
-                    brightness(0.92);
-
-                /* pertajam render */
-                image-rendering:crisp-edges;
-
-                /* hindari blur browser */
-                transform:translateZ(0);
-
-                /* printer thermal */
-                -webkit-print-color-adjust:exact;
-                print-color-adjust:exact;
-            }
-
-            /* ── TYPOGRAPHY ───────────────────────────── */
-            .b  { font-weight:750; }
-            .bb { font-weight:800; }
-
-            .tc { text-align:center; }
-            .tr { text-align:right; }
-            .uc { text-transform:uppercase; }
-
-            .f8  { font-size:8px; }
-            .f9  { font-size:9px; }
-            .f10 { font-size:10px; }
-            .f11 { font-size:11px; }
-            .f12 { font-size:12px; }
-
-            /* ── GARIS ────────────────────────────────── */
-            .hrd { border:none; border-top:1px dashed #000; margin:3px 0; }
-            .hrs { border:none; border-top:1.5px solid #000; margin:3px 0; }
-
-            /* ── TABEL ────────────────────────────────── */
-            table { width:100%; border-collapse:collapse; }
-            td    { padding:1px 0; vertical-align:top; }
-
-            .cl { width:28%; }
-            .cs { width:5%; }
-            .cv { width:67%; }
-
-            /* ── BADGE ────────────────────────────────── */
-            .badge {
-                display:inline-block;
-                border:1px solid #000;
-                padding:1px 5px;
-                font-size:8px;
-                font-weight:750;
-                letter-spacing:.6px;
-            }
-
-            /* ── BOX SISA ─────────────────────────────── */
-            .box-sisa {
-                border:1px solid #000;
-                text-align:center;
-                font-weight:700;
-                font-size:10px;
-                padding:3px 0;
-                margin:3px 0;
-            }
-
-            tr { page-break-inside:avoid; }
+            .sk { display:block !important; width:40mm !important; }
         }
     </style>`;
 }
@@ -5549,80 +5541,89 @@ function printStrukSplit(paidItems, totalBayar, metode, sisaTagihan) {
 // Android Median   → gonative.print.printPage() (dialog print Android native)
 // ─────────────────────────────────────────────────────────────────────────────
 function _doPrint(bodyHtml) {
-    // 1. Tulis konten ke section-to-print (dipakai kedua platform)
-    let el = document.getElementById('section-to-print');
-    if (!el) {
-        el = document.createElement('div');
-        el.id = 'section-to-print';
-        document.body.appendChild(el);
-    }
-    el.innerHTML = _style() + bodyHtml;
-
-    // 2. Deteksi platform
+    // Deteksi platform: Median.co APK atau browser desktop
     const isMedianApp = !!(
-        window.median      ||
-        window.gonative    ||
+        window.median   ||
+        window.gonative ||
         navigator.userAgent.toLowerCase().includes('gonative') ||
         navigator.userAgent.toLowerCase().includes('median')
     );
 
     if (isMedianApp) {
-        // ── ANDROID / MEDIAN.CO ─────────────────────────────────────────────
-        // Buat halaman HTML mandiri dalam blob URL, lalu kirim ke Median print
-        setTimeout(() => {
+        // ── ANDROID / MEDIAN.CO ──────────────────────────────────────────────
+        // Buat dokumen HTML standalone lengkap sebagai Blob.
+        // _style() menghasilkan CSS datar (BUKAN di dalam @media print) sehingga
+        // langsung dirender oleh WebView / print renderer Android.
+        // PENTING: JANGAN inject _style() ke #section-to-print dulu — blob sudah
+        // membawa semua CSS sendiri. .sk TIDAK punya display:none di luar @media screen
+        // sehingga langsung terlihat di blob.
+        setTimeout(function() {
             try {
-                const fullHtml = `<!DOCTYPE html>
-<html><head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<style>
-  @page { size: 58mm auto; margin: 0; }
-  body  { margin: 0; padding: 2mm; font-family: 'Courier New', monospace; font-size: 11px; color: #000; background: #fff; }
-  * { box-sizing: border-box; }
-</style>
-</head><body>${_style()}${bodyHtml}</body></html>`;
+                var struкHtml = '<div class="sk">' + bodyHtml.replace(/^<div class="sk">|<\/div>$/g,'') + '</div>';
+                // Jika bodyHtml sudah wrapped .sk, pakai apa adanya
+                var contentHtml = bodyHtml.trim().startsWith('<div class="sk">') ? bodyHtml : '<div class="sk">' + bodyHtml + '</div>';
 
-                const blob    = new Blob([fullHtml], { type: 'text/html' });
-                const blobUrl = URL.createObjectURL(blob);
+                var blobDoc = '<!DOCTYPE html>\n'
+                    + '<html><head>\n'
+                    + '<meta charset="UTF-8">\n'
+                    + '<meta name="viewport" content="width=device-width,initial-scale=1.0">\n'
+                    + _style()   // CSS struk lengkap (datar, tanpa @media print wrapper)
+                    + '</head><body style="margin:0;padding:0;background:#fff;">\n'
+                    + contentHtml
+                    + '\n</body></html>';
 
-                // Median.co / GoNative print API
-                if (window.gonative && gonative.print) {
-                    gonative.print.printPage({
-                        url: blobUrl,
-                        // Lepas blob setelah 30 detik
-                        callback: function() { URL.revokeObjectURL(blobUrl); }
-                    });
-                } else if (window.median && median.print) {
-                    median.print.printPage({
-                        url: blobUrl,
-                        callback: function() { URL.revokeObjectURL(blobUrl); }
-                    });
+                var blob    = new Blob([blobDoc], { type: 'text/html;charset=utf-8' });
+                var blobUrl = URL.createObjectURL(blob);
+                var cleanup = function() { setTimeout(function(){ URL.revokeObjectURL(blobUrl); }, 30000); };
+
+                if (window.gonative && gonative.print && gonative.print.printPage) {
+                    gonative.print.printPage({ url: blobUrl });
+                    cleanup();
+                } else if (window.median && median.print && median.print.printPage) {
+                    median.print.printPage({ url: blobUrl });
+                    cleanup();
                 } else {
-                    // Fallback: buka di tab baru lalu trigger print (juga jalan di Android)
-                    const win = window.open(blobUrl, '_blank');
+                    // Fallback: buka tab baru dan print
+                    var win = window.open(blobUrl, '_blank');
                     if (win) {
                         win.onload = function() {
+                            win.focus();
                             win.print();
-                            setTimeout(() => { win.close(); URL.revokeObjectURL(blobUrl); }, 1500);
+                            setTimeout(function() { win.close(); URL.revokeObjectURL(blobUrl); }, 2000);
                         };
                     } else {
-                        // Tab baru diblokir — fallback ke window.print standar
+                        // Popup diblokir — inject ke DOM lalu window.print()
+                        var el = document.getElementById('section-to-print');
+                        if (!el) { el = document.createElement('div'); el.id = 'section-to-print'; document.body.appendChild(el); }
+                        el.innerHTML = _style() + contentHtml;
                         window.focus();
                         window.print();
                         URL.revokeObjectURL(blobUrl);
                     }
                 }
-            } catch(e) {
-                console.warn('[Print] Android print gagal, fallback ke window.print:', e);
+            } catch(err) {
+                console.warn('[Print] Android blob gagal, fallback window.print:', err);
+                var el2 = document.getElementById('section-to-print');
+                if (!el2) { el2 = document.createElement('div'); el2.id = 'section-to-print'; document.body.appendChild(el2); }
+                el2.innerHTML = _style() + bodyHtml;
                 window.focus();
                 window.print();
             }
-        }, 400);
+        }, 350);
 
     } else {
-        // ── DESKTOP BROWSER ─────────────────────────────────────────────────
-        // window.print() standar — @media print CSS sudah ada di _style()
-        setTimeout(() => { window.focus(); window.print(); }, 450);
+        // ── DESKTOP BROWSER ──────────────────────────────────────────────────
+        // Inject ke #section-to-print, lalu window.print().
+        // @media print di dalam _style() menyembunyikan semua elemen lain
+        // dan menampilkan hanya #section-to-print.
+        var el = document.getElementById('section-to-print');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'section-to-print';
+            document.body.appendChild(el);
+        }
+        el.innerHTML = _style() + bodyHtml;
+        setTimeout(function() { window.focus(); window.print(); }, 450);
     }
 }
     
