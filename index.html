@@ -5517,26 +5517,53 @@ function _isAndroid() {
     return /android/i.test(navigator.userAgent);
 }
 
+// ── Helper: encode string UTF-8 ke base64 dengan benar ───────────────────────
+// btoa() bawaan browser GAGAL untuk karakter non-ASCII (huruf Indonesia,
+// Rp, dll) karena hanya support Latin-1. Solusi: encode manual via
+// TextEncoder (UTF-8 bytes) → Uint8Array → base64 string.
+function _utf8ToBase64(str) {
+    try {
+        // Cara modern — TextEncoder tersedia di semua Android 5+
+        var bytes = new TextEncoder().encode(str);
+        var binary = '';
+        var len = bytes.byteLength;
+        for (var i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary);
+    } catch(e) {
+        // Fallback lama — hanya untuk browser sangat tua
+        return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(_, p1) {
+            return String.fromCharCode(parseInt(p1, 16));
+        }));
+    }
+}
+
 // ── Helper: coba buka RawBT intent, return true jika berhasil dikirim ─────────
-// RawBT menerima 2 format:
-//   1. rawbt://html/<base64url_encoded_html>   — lebih reliable
-//   2. intent://print#Intent;scheme=rawbt;...  — Android intent URI
+// RawBT menerima format: rawbt://html/<base64_utf8_encoded_html>
+// PENTING: HTML harus mengandung <meta charset="UTF-8"> agar RawBT
+// mem-parse dengan encoding yang benar.
 function _tryRawBT(htmlContent) {
     try {
-        // Encode HTML ke base64 (btoa standard, lalu URL-safe)
-        var b64 = btoa(unescape(encodeURIComponent(htmlContent)));
+        // Pastikan HTML punya charset declaration
+        if (htmlContent.indexOf('charset="UTF-8"') === -1 && htmlContent.indexOf("charset='UTF-8'") === -1) {
+            htmlContent = htmlContent.replace('<head>', '<head><meta charset="UTF-8">');
+        }
+
+        // Encode ke base64 UTF-8 yang benar (bukan btoa biasa)
+        var b64 = _utf8ToBase64(htmlContent);
         var rawbtUrl = 'rawbt://html/' + b64;
 
-        // Coba buka via iframe agar tidak navigasi halaman
+        // Buka via iframe agar tidak navigasi halaman utama
         var iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
+        iframe.style.cssText = 'display:none;width:0;height:0;border:0;position:absolute;left:-9999px;';
         document.body.appendChild(iframe);
         iframe.src = rawbtUrl;
         setTimeout(function() {
             try { document.body.removeChild(iframe); } catch(e) {}
-        }, 3000);
+        }, 4000);
 
-        console.log('[Print] RawBT intent dikirim via rawbt://html/...');
+        console.log('[Print] RawBT intent dikirim (' + b64.length + ' chars)');
         return true;
     } catch(e) {
         console.warn('[Print] RawBT gagal:', e);
