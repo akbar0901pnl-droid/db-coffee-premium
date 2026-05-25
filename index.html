@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <!-- ANDROID / MEDIAN.CO OPTIMIZED VIEWPORT -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>D&B COFFEE PREMIUM - POS SYSTEM v6.0</title>
+    <title>D&B COFFEE PREMIUM - POS SYSTEM v12.1.1</title>
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1348,7 +1348,7 @@
             <div style="z-index:3;position:relative">
                 <img src="https://lh3.googleusercontent.com/d/1qiyKZSuCfpSOjWq0ciH6wodGK9bLXDLW" alt="Logo" style="width:180px;height:auto;filter:drop-shadow(0 0 15px rgba(241,196,15,.3))" class="mb-4">
                 <h2 class="fw-bold m-0 text-uppercase" style="letter-spacing:3px;color:#f1c40f">D&B COFFEE</h2>
-                <p class="small opacity-75 mt-2">PREMIUM ROASTERY & POS SYSTEM v4.0</p>
+                <p class="small opacity-75 mt-2">PREMIUM ROASTERY & POS SYSTEM v12.1.1</p>
                 <div class="mt-4 mx-auto" style="width:40px;height:3px;background:#f1c40f"></div>
             </div>
         </div>
@@ -5550,27 +5550,21 @@ function _isAndroid() {
 }
 
 // ── Helper: encode string UTF-8 ke base64 dengan benar ───────────────────────
-// btoa() bawaan browser GAGAL untuk karakter non-ASCII (huruf Indonesia,
-// Rp, dll) karena hanya support Latin-1. Solusi: encode manual via
-// TextEncoder (UTF-8 bytes) → Uint8Array → base64 string.
-// PERBAIKAN v12: chunk-based encoding untuk cegah stack overflow pada HTML besar
+// btoa() bawaan browser GAGAL untuk karakter non-ASCII karena hanya support Latin-1.
+// PERBAIKAN: loop byte-per-byte manual, TANPA .apply(null, TypedArray) yang
+// tidak reliable di Android WebView dan menyebabkan karakter random/rusak.
 function _utf8ToBase64(str) {
     try {
-        // Cara modern — TextEncoder tersedia di semua Android 5+
         var bytes = new TextEncoder().encode(str);
-        // PERBAIKAN: konversi Uint8Array ke Array biasa sebelum apply()
-        // String.fromCharCode.apply() pada Uint8Array (typed array) tidak reliable
-        // di beberapa Android WebView — menghasilkan binary string korup → karakter random
-        var CHUNK = 4096; // Lebih kecil agar tidak stack overflow
+        // Loop manual byte per byte — TIDAK menggunakan .apply() pada TypedArray
+        // String.fromCharCode.apply(null, Uint8Array) tidak reliable di banyak
+        // Android WebView: menghasilkan binary string korup -> base64 salah -> karakter rusak
         var binary = '';
-        for (var i = 0; i < bytes.byteLength; i += CHUNK) {
-            // Array.from() memastikan typed array dikonversi ke plain Array
-            // sebelum disebarkan via .apply() — compatible semua Android WebView
-            binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK)));
+        for (var i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
         }
         return btoa(binary);
     } catch(e) {
-        // Fallback: gunakan encodeURIComponent
         try {
             return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(_, p1) {
                 return String.fromCharCode(parseInt(p1, 16));
@@ -5609,17 +5603,13 @@ function _tryRawBT(htmlContent) {
         //    (RawBT cetak langsung — print dialog TIDAK diperlukan)
         htmlContent = htmlContent.replace(/<scr\x69pt[^>]*>[\s\S]*?window\.print[\s\S]*?<\/scr\x69pt>/gi, '');
 
-        // 3. Ganti gambar eksternal (http/https) dengan placeholder kosong
-        //    agar RawBT tidak hang mencoba load URL gambar saat offline/BT
-        //    Gambar data: URI (base64) tetap dipertahankan
-        htmlContent = htmlContent.replace(
-            /(<img\s[^>]*\bsrc\s*=\s*["'])(https?:\/\/[^"']+)(["'][^>]*>)/gi,
-            function(_, before, url, after) {
-                // Cek apakah ada fallback onerror (kalau ada, biarkan — dia handle sendiri)
-                // Ganti src dengan data URI kosong 1x1 transparan agar render tidak hang
-                return before + 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==' + after;
-            }
-        );
+        // 3. HAPUS SEMUA tag <img> sebelum kirim ke RawBT
+        //    ALASAN: logo base64 (data: URI) bisa mencapai ratusan KB — jika ikut
+        //    di-encode ke base64 lagi dalam rawbt://html/<b64>, ukuran URL meledak
+        //    dan Android memotong/korup saat pass ke Intent, menghasilkan
+        //    HTML rusak yang ditampilkan sebagai karakter random oleh RawBT.
+        //    Logo tidak diperlukan untuk printer thermal — teks sudah cukup.
+        htmlContent = htmlContent.replace(/<img\s[^>]*>/gi, '');
 
         // 4. Encode ke base64 UTF-8 yang benar
         var b64 = _utf8ToBase64(htmlContent);
@@ -5704,13 +5694,14 @@ function _buildBlobDoc(contentHtml) {
     var rawbtStyleOverride = '<style>'
         + 'html,body{'
         +   'margin:0;padding:0;background:#fff;'
-        +   'width:160px;max-width:160px;' // 42mm @ 96dpi
-        +   'font-family:"Courier New",Courier,monospace;'
+        +   'width:160px;max-width:160px;'
+        +   'font-family:monospace;'  // monospace pasti tersedia di semua Android
         + '}'
         + '.sk{'
         +   'display:block!important;visibility:visible!important;'
-        +   'width:144px!important;margin:0 auto!important;' // 38mm @ 96dpi
+        +   'width:144px!important;margin:0 auto!important;'
         +   'padding:2px 0 10px 0;'
+        +   'font-family:monospace!important;'  // override 'Courier New' yang mungkin tidak ada
         + '}'
         + '</style>';
 
@@ -5792,20 +5783,7 @@ function _doPrint(bodyHtml) {
                     console.warn('[Print] Blob gagal:', blobErr);
                 }
 
-                var dataUri = null;
-                // PERBAIKAN: gunakan base64 encoding untuk data URI, bukan encodeURIComponent
-                // encodeURIComponent dapat menghasilkan URI terlalu panjang & karakter rusak
-                // di Android WebView. Base64 lebih reliable dan konsisten.
-                try {
-                    var b64doc = _utf8ToBase64(mediaPrintDoc);
-                    if (b64doc) {
-                        dataUri = 'data:text/html;charset=utf-8;base64,' + b64doc;
-                    }
-                } catch(b64err) {}
-                // Ultimate fallback ke encodeURIComponent jika base64 gagal
-                if (!dataUri) {
-                    dataUri = 'data:text/html;charset=utf-8,' + encodeURIComponent(mediaPrintDoc);
-                }
+                var dataUri = 'data:text/html;charset=utf-8,' + encodeURIComponent(mediaPrintDoc);
 
                 var cleanup = function(url) {
                     if (url && url.startsWith('blob:')) {
