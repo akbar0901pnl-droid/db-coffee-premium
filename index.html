@@ -654,7 +654,31 @@
         .stok-bar{height:6px;border-radius:3px;background:#e2e8f0;overflow:hidden;margin-top:6px}
         .stok-fill{height:100%;border-radius:3px;transition:width .3s}
         
-        /* PRINT — hanya untuk browser desktop (window.print()) */
+
+    /* =====================================================
+       DESKTOP LAYOUT FIX — Dashboard Cards & Charts
+       Memperbaiki tampilan grid dan canvas chart di desktop
+       ===================================================== */
+    @media (min-width: 992px) {
+        .main-content {
+            width: calc(100% - 250px) !important;
+            box-sizing: border-box !important;
+        }
+        #page-dash [class*="col-md-3"] { flex: 0 0 25% !important; max-width: 25% !important; }
+        #page-dash [class*="col-md-4"] { flex: 0 0 33.333333% !important; max-width: 33.333333% !important; }
+        #page-dash [class*="col-md-5"] { flex: 0 0 41.666667% !important; max-width: 41.666667% !important; }
+        #page-dash [class*="col-md-6"] { flex: 0 0 50% !important; max-width: 50% !important; }
+        #page-dash [class*="col-md-7"] { flex: 0 0 58.333333% !important; max-width: 58.333333% !important; }
+        #page-dash [class*="col-md-8"] { flex: 0 0 66.666667% !important; max-width: 66.666667% !important; }
+        #revenueChart, #produkChart {
+            position: absolute !important;
+            top: 0; left: 0;
+            width: 100% !important;
+            height: 100% !important;
+        }
+    }
+
+            /* PRINT — hanya untuk browser desktop (window.print()) */
         /* Android APK menggunakan blob HTML terpisah via _doPrint()  */
         #section-to-print { display:none; }
         @media print {
@@ -1499,8 +1523,8 @@
         <div class="col-md-6"><div class="mini-card shadow-sm h-100"><div class="icon-box bg-soft-blue"><i class="fas fa-qrcode text-primary"></i></div><div class="card-content"><span class="label">SALDO DIGITAL (QRIS)</span><h3 id="dash-saldo-qris" class="value text-primary">Rp 0</h3></div></div></div>
     </div>
     <div class="row g-3 mb-4">
-        <div class="col-md-7"><div class="dash-card shadow-sm h-100"><h6><i class="bi bi-graph-up-arrow me-2 text-primary"></i>Revenue Trend</h6><canvas id="revenueChart" style="max-height:240px"></canvas></div></div>
-        <div class="col-md-5"><div class="dash-card shadow-sm h-100"><h6><i class="bi bi-bar-chart-fill me-2 text-warning"></i>Top 10 Produk Terjual</h6><canvas id="produkChart" style="max-height:240px"></canvas></div></div>
+        <div class="col-md-7"><div class="dash-card shadow-sm h-100"><h6><i class="bi bi-graph-up-arrow me-2 text-primary"></i>Revenue Trend</h6><div style="position:relative;height:240px;width:100%"><canvas id="revenueChart"></canvas></div></div></div>
+        <div class="col-md-5"><div class="dash-card shadow-sm h-100"><h6><i class="bi bi-bar-chart-fill me-2 text-warning"></i>Top 10 Produk Terjual</h6><div style="position:relative;height:240px;width:100%"><canvas id="produkChart"></canvas></div></div></div>
     </div>
     <div class="row g-3 mb-4">
         <div class="col-md-8"><div class="dash-card shadow-sm"><h6><i class="bi bi-people-fill me-2 text-primary"></i>Performa Kasir</h6><div id="kasir-performance-list" class="row"></div></div></div>
@@ -5329,6 +5353,7 @@ const _tgl = () => new Date().toLocaleString('id-ID', {
 //   • -webkit-font-smoothing:none agar tidak ada smoothing
 // ─────────────────────────────────────────────────────────────────────────────
 function _style(forBlob) {
+    // CSS dasar thermal — dipakai semua mode
     const base = `
         * {
             box-sizing: border-box;
@@ -5360,11 +5385,9 @@ function _style(forBlob) {
             height: 56px;
             object-fit: contain;
             margin: 0 auto 3px;
-            filter: grayscale(100%) invert(1) contrast(3) invert(1) brightness(1.8);
+            filter: grayscale(100%) contrast(2);
             image-rendering: pixelated;
             image-rendering: crisp-edges;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
         }
 
         /* ── TIPOGRAFI — ukuran integer agar tajam di thermal ── */
@@ -5439,30 +5462,28 @@ function _style(forBlob) {
     `;
 
     if (forBlob) {
-        // Blob untuk Android Median/GoNative — pakai @page 42mm agar
-        // median.print.printPage() / gonative.print.printPage() langsung
-        // mencetak di kertas thermal 42mm tanpa dialog ukuran kertas
+        // ── Mode RawBT / Blob Android ──────────────────────────────────────
+        // PENTING: Tidak ada @media screen/print — RawBT render HTML apa adanya.
+        // Tidak ada window.print() — RawBT cetak langsung tanpa dialog.
+        // Width body di-set ke 42mm agar sesuai kertas thermal.
         return `<style>
-            @page {
-                size: 42mm auto;
-                margin: 0;
-            }
-            ${base}
             html, body {
                 margin: 0;
                 padding: 0;
                 background: #fff;
                 width: 42mm;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
+                max-width: 42mm;
             }
             .sk {
                 display: block !important;
+                visibility: visible !important;
                 width: 38mm !important;
                 margin: 0 auto !important;
             }
+            ${base}
         </style>`;
     } else {
+        // ── Mode Desktop — tersembunyi di layar, muncul saat print ──────────
         return `<style>
             ${base}
             @media screen { .sk { display: none; } }
@@ -5540,15 +5561,25 @@ function _utf8ToBase64(str) {
 }
 
 // ── Helper: coba buka RawBT intent, return true jika berhasil dikirim ─────────
-// RawBT menerima format: rawbt://html/<base64_utf8_encoded_html>
-// PENTING: HTML harus mengandung <meta charset="UTF-8"> agar RawBT
-// mem-parse dengan encoding yang benar.
+// RawBT mendukung dua format URI:
+//   Format A: rawbt://print?html=<url_encoded_html>  — lebih kompatibel, max ~4000 chars
+//   Format B: rawbt://html/<base64_utf8_html>        — untuk HTML lebih panjang
+//
+// PENTING:
+//   • HTML HARUS mengandung <meta charset="UTF-8"> agar karakter Indonesia tidak rusak
+//   • Tidak boleh ada window.print() di dalam HTML yang dikirim ke RawBT
+//   • RawBT render HTML langsung dan cetak — tidak pakai print dialog browser
+//   • Gambar URL eksternal mungkin tidak bisa diload jika tidak ada koneksi
 function _tryRawBT(htmlContent) {
     try {
         // Pastikan HTML punya charset declaration
         if (htmlContent.indexOf('charset="UTF-8"') === -1 && htmlContent.indexOf("charset='UTF-8'") === -1) {
             htmlContent = htmlContent.replace('<head>', '<head><meta charset="UTF-8">');
         }
+
+        // Pastikan TIDAK ada window.print() dalam HTML yang dikirim ke RawBT
+        // (RawBT cetak sendiri, bukan via print dialog)
+        htmlContent = htmlContent.replace(/<'+'script[^>]*>[\s\S]*?window\.print[\s\S]*?<\/script>/gi, '');
 
         // Encode ke base64 UTF-8 yang benar (bukan btoa biasa)
         var b64 = _utf8ToBase64(htmlContent);
@@ -5561,7 +5592,7 @@ function _tryRawBT(htmlContent) {
         iframe.src = rawbtUrl;
         setTimeout(function() {
             try { document.body.removeChild(iframe); } catch(e) {}
-        }, 4000);
+        }, 5000);
 
         console.log('[Print] RawBT intent dikirim (' + b64.length + ' chars)');
         return true;
@@ -5572,16 +5603,19 @@ function _tryRawBT(htmlContent) {
 }
 
 // ── Build HTML blob untuk cetak (42mm) ────────────────────────────────────────
+// PENTING untuk RawBT:
+//   • TANPA <'+'script>window.print()<\/script> — RawBT cetak langsung, bukan via browser dialog
+//   • TANPA @page / @media print — RawBT render HTML apa adanya, bukan print preview
+//   • charset UTF-8 wajib ada di <meta> agar huruf Indonesia tidak rusak
+//   • Width body = 42mm (atau 158px ~= 42mm @ 96dpi) agar pas di kertas thermal
 function _buildBlobDoc(contentHtml) {
     return '<!DOCTYPE html>\n'
         + '<html><head>\n'
         + '<meta charset="UTF-8">\n'
-        + '<meta name="viewport" content="width=158,initial-scale=1.0,maximum-scale=1.0">\n'
-        + '<style>@page{size:42mm auto;margin:0;}</style>\n'
+        + '<meta name="viewport" content="width=158,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">\n'
         + _style(true)
         + '</head>'
-        + '<script>window.onload=function(){setTimeout(function(){window.print();},200);}<\/script>'
-        + '<body style="margin:0;padding:0;background:#fff;width:42mm;">\n'
+        + '<body style="margin:0;padding:0;background:#fff;width:42mm;max-width:42mm;">\n'
         + contentHtml
         + '\n</body></html>';
 }
@@ -5602,36 +5636,44 @@ function _doPrint(bodyHtml) {
 
     if (isAndroid || isMedianApp) {
         // ── ANDROID — Prioritas: RawBT → Median/GoNative → Fallback ────────
-        // viewport width=158 ≈ 42mm @ 96 dpi (158px / 96 * 25.4 = 41.8mm)
         setTimeout(function() {
             try {
-                var blobDoc = _buildBlobDoc(contentHtml);
+                // ── PRIORITAS 1: RawBT Bluetooth ────────────────────────────
+                // Kirim dokumen TANPA window.print() — RawBT cetak langsung
+                if (isAndroid) {
+                    var rawbtDoc = _buildBlobDoc(contentHtml);
+                    if (_tryRawBT(rawbtDoc)) return;
+                }
+
+                // ── Untuk Median/GoNative & fallback: pakai blob DENGAN window.print() ─
+                var mediaPrintDoc = '<!DOCTYPE html>\n'
+                    + '<html><head>\n'
+                    + '<meta charset="UTF-8">\n'
+                    + '<meta name="viewport" content="width=158,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">\n'
+                    + '<style>@page{size:42mm auto;margin:0;}</style>\n'
+                    + _style(true)
+                    + '</head>'
+                     + '<'+'script>window.onload=function(){setTimeout(function(){window.print();},200);}<\/script>'
+                    + '<body style="margin:0;padding:0;background:#fff;width:42mm;max-width:42mm;">\n'
+                    + contentHtml
+                    + '\n</body></html>';
 
                 // Coba blob URL (lebih reliable di Median baru)
                 var blobUrl = null;
                 try {
-                    var blob = new Blob([blobDoc], { type: 'text/html;charset=utf-8' });
+                    var blob = new Blob([mediaPrintDoc], { type: 'text/html;charset=utf-8' });
                     blobUrl = URL.createObjectURL(blob);
                 } catch(blobErr) {
                     console.warn('[Print] Blob gagal:', blobErr);
                 }
 
-                var dataUri = 'data:text/html;charset=utf-8,' + encodeURIComponent(blobDoc);
+                var dataUri = 'data:text/html;charset=utf-8,' + encodeURIComponent(mediaPrintDoc);
 
                 var cleanup = function(url) {
                     if (url && url.startsWith('blob:')) {
                         setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
                     }
                 };
-
-                // ── PRIORITAS 1: RawBT Bluetooth ────────────────────────────
-                // RawBT adalah app Android untuk cetak thermal via Bluetooth.
-                // Kirim HTML langsung — RawBT parse & cetak tanpa dialog.
-                // Pastikan RawBT terinstall & printer sudah dipasangkan di RawBT.
-                if (isAndroid && _tryRawBT(blobDoc)) {
-                    cleanup(blobUrl);
-                    return;
-                }
 
                 // ── PRIORITAS 2: Median/GoNative print API ───────────────────
                 function tryMedianPrint(url) {
@@ -5709,7 +5751,7 @@ function printStruk(metode="CASH", bayar=0, forcedType=null, forcedVal=null) {
 
     // ── Item rows: nama bold uppercase, qty×harga di baris kedua ──
     const itemRows = CART.map(i => {
-        const nm = i.nama.length > 24 ? i.nama.substring(0,23)+'…' : i.nama;
+        const nm = i.nama.length > 24 ? i.nama.substring(0,23)+'...' : i.nama;
         return `
         <tr>
             <td colspan="2" class="bb f11 uc" style="padding-top:5px;letter-spacing:.2px">${nm}</td>
@@ -5833,7 +5875,7 @@ function printStrukSplit(paidItems, totalBayar, metode, sisaTagihan) {
     const kasirNama = localStorage.getItem('user_nama') || KASIR || 'Kasir';
 
     const itemRows = paidItems.map(i => {
-        const nm = i.nama.length > 24 ? i.nama.substring(0,23)+'…' : i.nama;
+        const nm = i.nama.length > 24 ? i.nama.substring(0,23)+'...' : i.nama;
         return `
         <tr>
             <td colspan="2" class="bb f11 uc" style="padding-top:5px;letter-spacing:.2px">${nm}</td>
