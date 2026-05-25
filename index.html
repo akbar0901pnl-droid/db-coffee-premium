@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <!-- ANDROID / MEDIAN.CO OPTIMIZED VIEWPORT -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>D&B COFFEE PREMIUM - POS SYSTEM v12.1.1</title>
+    <title>D&B COFFEE PREMIUM - POS SYSTEM v6.0</title>
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1348,7 +1348,7 @@
             <div style="z-index:3;position:relative">
                 <img src="https://lh3.googleusercontent.com/d/1qiyKZSuCfpSOjWq0ciH6wodGK9bLXDLW" alt="Logo" style="width:180px;height:auto;filter:drop-shadow(0 0 15px rgba(241,196,15,.3))" class="mb-4">
                 <h2 class="fw-bold m-0 text-uppercase" style="letter-spacing:3px;color:#f1c40f">D&B COFFEE</h2>
-                <p class="small opacity-75 mt-2">PREMIUM ROASTERY & POS SYSTEM v12.1.1</p>
+                <p class="small opacity-75 mt-2">PREMIUM ROASTERY & POS SYSTEM v4.0</p>
                 <div class="mt-4 mx-auto" style="width:40px;height:3px;background:#f1c40f"></div>
             </div>
         </div>
@@ -5558,12 +5558,15 @@ function _utf8ToBase64(str) {
     try {
         // Cara modern — TextEncoder tersedia di semua Android 5+
         var bytes = new TextEncoder().encode(str);
-        // Chunk-based untuk menghindari stack overflow di Android WebView
-        // ketika HTML besar (logo base64, item banyak, dll)
-        var CHUNK = 8192;
+        // PERBAIKAN: konversi Uint8Array ke Array biasa sebelum apply()
+        // String.fromCharCode.apply() pada Uint8Array (typed array) tidak reliable
+        // di beberapa Android WebView — menghasilkan binary string korup → karakter random
+        var CHUNK = 4096; // Lebih kecil agar tidak stack overflow
         var binary = '';
         for (var i = 0; i < bytes.byteLength; i += CHUNK) {
-            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+            // Array.from() memastikan typed array dikonversi ke plain Array
+            // sebelum disebarkan via .apply() — compatible semua Android WebView
+            binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK)));
         }
         return btoa(binary);
     } catch(e) {
@@ -5789,7 +5792,20 @@ function _doPrint(bodyHtml) {
                     console.warn('[Print] Blob gagal:', blobErr);
                 }
 
-                var dataUri = 'data:text/html;charset=utf-8,' + encodeURIComponent(mediaPrintDoc);
+                var dataUri = null;
+                // PERBAIKAN: gunakan base64 encoding untuk data URI, bukan encodeURIComponent
+                // encodeURIComponent dapat menghasilkan URI terlalu panjang & karakter rusak
+                // di Android WebView. Base64 lebih reliable dan konsisten.
+                try {
+                    var b64doc = _utf8ToBase64(mediaPrintDoc);
+                    if (b64doc) {
+                        dataUri = 'data:text/html;charset=utf-8;base64,' + b64doc;
+                    }
+                } catch(b64err) {}
+                // Ultimate fallback ke encodeURIComponent jika base64 gagal
+                if (!dataUri) {
+                    dataUri = 'data:text/html;charset=utf-8,' + encodeURIComponent(mediaPrintDoc);
+                }
 
                 var cleanup = function(url) {
                     if (url && url.startsWith('blob:')) {
