@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <!-- ANDROID / MEDIAN.CO OPTIMIZED VIEWPORT -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>D&B COFFEE PREMIUM - POS SYSTEM v12.1.1</title>
+    <title>D&B COFFEE PREMIUM - POS SYSTEM v6.0</title>
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1348,7 +1348,7 @@
             <div style="z-index:3;position:relative">
                 <img src="https://lh3.googleusercontent.com/d/1qiyKZSuCfpSOjWq0ciH6wodGK9bLXDLW" alt="Logo" style="width:180px;height:auto;filter:drop-shadow(0 0 15px rgba(241,196,15,.3))" class="mb-4">
                 <h2 class="fw-bold m-0 text-uppercase" style="letter-spacing:3px;color:#f1c40f">D&B COFFEE</h2>
-                <p class="small opacity-75 mt-2">PREMIUM ROASTERY & POS SYSTEM v12.1.1</p>
+                <p class="small opacity-75 mt-2">PREMIUM ROASTERY & POS SYSTEM v4.0</p>
                 <div class="mt-4 mx-auto" style="width:40px;height:3px;background:#f1c40f"></div>
             </div>
         </div>
@@ -5550,21 +5550,24 @@ function _isAndroid() {
 }
 
 // ── Helper: encode string UTF-8 ke base64 dengan benar ───────────────────────
-// btoa() bawaan browser GAGAL untuk karakter non-ASCII karena hanya support Latin-1.
-// PERBAIKAN: loop byte-per-byte manual, TANPA .apply(null, TypedArray) yang
-// tidak reliable di Android WebView dan menyebabkan karakter random/rusak.
+// btoa() bawaan browser GAGAL untuk karakter non-ASCII (huruf Indonesia,
+// Rp, dll) karena hanya support Latin-1. Solusi: encode manual via
+// TextEncoder (UTF-8 bytes) → Uint8Array → base64 string.
+// PERBAIKAN v12: chunk-based encoding untuk cegah stack overflow pada HTML besar
 function _utf8ToBase64(str) {
     try {
+        // Cara modern — TextEncoder tersedia di semua Android 5+
         var bytes = new TextEncoder().encode(str);
-        // Loop manual byte per byte — TIDAK menggunakan .apply() pada TypedArray
-        // String.fromCharCode.apply(null, Uint8Array) tidak reliable di banyak
-        // Android WebView: menghasilkan binary string korup -> base64 salah -> karakter rusak
+        // Chunk-based untuk menghindari stack overflow di Android WebView
+        // ketika HTML besar (logo base64, item banyak, dll)
+        var CHUNK = 8192;
         var binary = '';
-        for (var i = 0; i < bytes.byteLength; i++) {
-            binary += String.fromCharCode(bytes[i]);
+        for (var i = 0; i < bytes.byteLength; i += CHUNK) {
+            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
         }
         return btoa(binary);
     } catch(e) {
+        // Fallback: gunakan encodeURIComponent
         try {
             return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(_, p1) {
                 return String.fromCharCode(parseInt(p1, 16));
@@ -5603,13 +5606,17 @@ function _tryRawBT(htmlContent) {
         //    (RawBT cetak langsung — print dialog TIDAK diperlukan)
         htmlContent = htmlContent.replace(/<scr\x69pt[^>]*>[\s\S]*?window\.print[\s\S]*?<\/scr\x69pt>/gi, '');
 
-        // 3. HAPUS SEMUA tag <img> sebelum kirim ke RawBT
-        //    ALASAN: logo base64 (data: URI) bisa mencapai ratusan KB — jika ikut
-        //    di-encode ke base64 lagi dalam rawbt://html/<b64>, ukuran URL meledak
-        //    dan Android memotong/korup saat pass ke Intent, menghasilkan
-        //    HTML rusak yang ditampilkan sebagai karakter random oleh RawBT.
-        //    Logo tidak diperlukan untuk printer thermal — teks sudah cukup.
-        htmlContent = htmlContent.replace(/<img\s[^>]*>/gi, '');
+        // 3. Ganti gambar eksternal (http/https) dengan placeholder kosong
+        //    agar RawBT tidak hang mencoba load URL gambar saat offline/BT
+        //    Gambar data: URI (base64) tetap dipertahankan
+        htmlContent = htmlContent.replace(
+            /(<img\s[^>]*\bsrc\s*=\s*["'])(https?:\/\/[^"']+)(["'][^>]*>)/gi,
+            function(_, before, url, after) {
+                // Cek apakah ada fallback onerror (kalau ada, biarkan — dia handle sendiri)
+                // Ganti src dengan data URI kosong 1x1 transparan agar render tidak hang
+                return before + 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==' + after;
+            }
+        );
 
         // 4. Encode ke base64 UTF-8 yang benar
         var b64 = _utf8ToBase64(htmlContent);
@@ -5694,14 +5701,13 @@ function _buildBlobDoc(contentHtml) {
     var rawbtStyleOverride = '<style>'
         + 'html,body{'
         +   'margin:0;padding:0;background:#fff;'
-        +   'width:160px;max-width:160px;'
-        +   'font-family:monospace;'  // monospace pasti tersedia di semua Android
+        +   'width:160px;max-width:160px;' // 42mm @ 96dpi
+        +   'font-family:"Courier New",Courier,monospace;'
         + '}'
         + '.sk{'
         +   'display:block!important;visibility:visible!important;'
-        +   'width:144px!important;margin:0 auto!important;'
+        +   'width:144px!important;margin:0 auto!important;' // 38mm @ 96dpi
         +   'padding:2px 0 10px 0;'
-        +   'font-family:monospace!important;'  // override 'Courier New' yang mungkin tidak ada
         + '}'
         + '</style>';
 
@@ -5718,135 +5724,21 @@ function _buildBlobDoc(contentHtml) {
 }
 
 function _doPrint(bodyHtml) {
-    const isMedianApp = !!(
-        window.median   ||
-        window.gonative ||
-        navigator.userAgent.toLowerCase().includes('gonative') ||
-        navigator.userAgent.toLowerCase().includes('median')
-    );
-    const isAndroid = _isAndroid();
-
     // Pastikan bodyHtml terbungkus .sk
     var contentHtml = bodyHtml.trim().startsWith('<div class="sk">')
         ? bodyHtml
         : '<div class="sk">' + bodyHtml + '</div>';
 
-    if (isAndroid || isMedianApp) {
-        // ── ANDROID — Prioritas: RawBT → Median/GoNative → Fallback ────────
-        setTimeout(function() {
-            try {
-                // ── PRIORITAS 1: RawBT Bluetooth ────────────────────────────
-                // Kirim dokumen TANPA window.print() — RawBT cetak langsung
-                // _tryRawBT sudah handle: median bridge → anchor click → location.href
-                if (isAndroid) {
-                    var rawbtDoc = _buildBlobDoc(contentHtml);
-                    if (_tryRawBT(rawbtDoc)) {
-                        // Tampilkan notifikasi sukses kirim ke RawBT (jika Swal tersedia)
-                        // Gunakan delay agar RawBT sempat membuka intent
-                        setTimeout(function() {
-                            if (window.Swal) {
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: 'Struk Dikirim',
-                                    text: 'Data struk berhasil dikirim ke printer thermal.',
-                                    toast: true,
-                                    position: 'bottom',
-                                    showConfirmButton: false,
-                                    timer: 2500,
-                                    timerProgressBar: true
-                                });
-                            }
-                        }, 800);
-                        return;
-                    }
-                }
-
-                // ── Untuk Median/GoNative & fallback: pakai blob DENGAN window.print() ─
-                var mediaPrintDoc = '<!DOCTYPE html>\n'
-                    + '<html><head>\n'
-                    + '<meta charset="UTF-8">\n'
-                    + '<meta name="viewport" content="width=160,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">\n'
-                    + '<style>@page{size:42mm auto;margin:0;}</style>\n'
-                    + _style(true)
-                    + '</head>'
-                    + '<scr\x69pt>window.onload=function(){setTimeout(function(){window.print();},200);}<\/script>'
-                    + '<body style="margin:0;padding:0;background:#fff;width:160px;max-width:160px;">\n'
-                    + contentHtml
-                    + '\n</body></html>';
-
-                // Coba blob URL (lebih reliable di Median baru)
-                var blobUrl = null;
-                try {
-                    var blob = new Blob([mediaPrintDoc], { type: 'text/html;charset=utf-8' });
-                    blobUrl = URL.createObjectURL(blob);
-                } catch(blobErr) {
-                    console.warn('[Print] Blob gagal:', blobErr);
-                }
-
-                var dataUri = 'data:text/html;charset=utf-8,' + encodeURIComponent(mediaPrintDoc);
-
-                var cleanup = function(url) {
-                    if (url && url.startsWith('blob:')) {
-                        setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
-                    }
-                };
-
-                // ── PRIORITAS 2: Median/GoNative print API ───────────────────
-                function tryMedianPrint(url) {
-                    if (window.gonative && gonative.print && gonative.print.printPage) {
-                        gonative.print.printPage({ url: url });
-                        cleanup(url);
-                        return true;
-                    } else if (window.median && median.print && median.print.printPage) {
-                        median.print.printPage({ url: url });
-                        cleanup(url);
-                        return true;
-                    }
-                    return false;
-                }
-
-                if (blobUrl && tryMedianPrint(blobUrl)) return;
-                if (tryMedianPrint(dataUri)) return;
-
-                // ── PRIORITAS 3: Buka tab baru (auto-print via window.onload) ─
-                var win = window.open(blobUrl || dataUri, '_blank');
-                if (win) {
-                    win.onload = function() {
-                        win.focus();
-                        win.print();
-                        setTimeout(function() { win.close(); cleanup(blobUrl); }, 3000);
-                    };
-                } else {
-                    // Popup diblokir — fallback ke window.print()
-                    var el = document.getElementById('section-to-print');
-                    if (!el) { el = document.createElement('div'); el.id = 'section-to-print'; document.body.appendChild(el); }
-                    el.innerHTML = _style(false) + contentHtml;
-                    window.focus();
-                    window.print();
-                    cleanup(blobUrl);
-                }
-
-            } catch(err) {
-                console.warn('[Print] Error, fallback window.print:', err);
-                var el2 = document.getElementById('section-to-print');
-                if (!el2) { el2 = document.createElement('div'); el2.id = 'section-to-print'; document.body.appendChild(el2); }
-                el2.innerHTML = _style(false) + contentHtml;
-                window.focus();
-                window.print();
-            }
-        }, 350);
-
-    } else {
-        // ── DESKTOP BROWSER ──────────────────────────────────────────────────
-        var el = document.getElementById('section-to-print');
-        if (!el) {
-            el = document.createElement('div');
-            el.id = 'section-to-print';
-            document.body.appendChild(el);
-        }
-        el.innerHTML = _style(false) + contentHtml;
-        setTimeout(function() { window.focus(); window.print(); }, 450);
+    // Inject konten ke #section-to-print lalu panggil window.print()
+    // Browser/Android akan menampilkan dialog pilih printer — pilih printer thermal
+    var el = document.getElementById('section-to-print');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'section-to-print';
+        document.body.appendChild(el);
     }
+    el.innerHTML = _style(false) + contentHtml;
+    setTimeout(function() { window.focus(); window.print(); }, 350);
 }
     
 // ── Print Struk Normal ────────────────────────────────────────────────────────
