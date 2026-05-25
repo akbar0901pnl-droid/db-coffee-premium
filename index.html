@@ -199,12 +199,12 @@
         const s = document.createElement('style');
         s.textContent = [
             '*, *::before, *::after { -webkit-tap-highlight-color: transparent; }',
-            'button, a, input, select, textarea, [onclick], .btn, .sidebar-link,',
+            'button, a, input, select, textarea, [onclick], .btn, .btn-login, .sidebar-link,',
             '.meja-card, .prod-card, .qty-btn { touch-action: manipulation; }',
             // Safe area insets untuk Android dengan notch / status bar
             'body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }',
             // Mencegah text selection saat long-press pada tombol
-            'button, .btn, .meja-card, .prod-card { -webkit-user-select: none; user-select: none; }',
+            'button, .btn, .btn-login, .meja-card, .prod-card { -webkit-user-select: none; user-select: none; }',
             // Smooth scrolling native Android
             '.table-responsive, #cart-list, #grid-produk, #grid-meja, .sidebar { -webkit-overflow-scrolling: touch; }',
             // Cegah overscroll bounce (rubber-band) di body
@@ -449,15 +449,31 @@
             );
             if (!isAPI) return _origFetch(url, opts);
 
-            const timeout   = opts._timeout || 30000; // 30 detik default
-            const maxRetry  = opts._retry   || 2;
+            // ─────────────────────────────────────────────────────────
+            // CORS FIX untuk Chrome Desktop & browser modern:
+            // Google Apps Script menolak preflight (OPTIONS) dari header
+            // 'Content-Type: application/json'. Solusinya adalah pakai
+            // 'text/plain' agar browser tidak mengirim preflight request.
+            // Body JSON string tetap valid karena GAS mem-parse sendiri.
+            // ─────────────────────────────────────────────────────────
+            const isPost = opts.method && opts.method.toUpperCase() === 'POST';
+            let fixedOpts = Object.assign({}, opts);
+            if (isPost) {
+                fixedOpts.headers = Object.assign(
+                    { 'Content-Type': 'text/plain;charset=UTF-8' },
+                    opts.headers || {}
+                );
+            }
+
+            const timeout   = fixedOpts._timeout || 30000; // 30 detik default
+            const maxRetry  = fixedOpts._retry   || 2;
             let   attempt   = 0;
 
             function doFetch() {
                 attempt++;
                 const controller = new AbortController();
                 const timer = setTimeout(() => controller.abort(), timeout);
-                const mergedOpts = Object.assign({}, opts, { signal: controller.signal });
+                const mergedOpts = Object.assign({}, fixedOpts, { signal: controller.signal });
                 delete mergedOpts._timeout; delete mergedOpts._retry;
 
                 return _origFetch(url, mergedOpts)
@@ -807,7 +823,7 @@
     }
 
     /* --- TOUCH TARGET: min 44px --- */
-    .btn, .sidebar-link, .meja-card, .prod-card,
+    .btn, .btn-login, .sidebar-link, .meja-card, .prod-card,
     button, input[type="button"], input[type="submit"],
     .qty-btn {
         min-height: 44px;
@@ -1268,7 +1284,7 @@
     </style>
 </head>
 <body>
-<div id="loader"><div class="spinner-border text-primary"></div><div class="mt-2 fw-bold">Memproses Data...</div></div>
+<div id="loader" style="position:fixed;inset:0;background:rgba(15,23,42,0.65);z-index:99999;display:none;align-items:center;justify-content:center;flex-direction:column;backdrop-filter:blur(3px)"><div class="spinner-border text-warning" style="width:48px;height:48px;border-width:4px"></div><div class="mt-3 fw-bold text-white" style="font-size:14px;letter-spacing:.5px">Memproses Data...</div></div>
 <div id="section-to-print"></div>
 
 <!-- HAMBURGER BUTTON (mobile only) -->
@@ -2293,6 +2309,45 @@ let ACTIVE_SHIFT = null; // current shift info for logged-in kasir
 let CURRENT_SELECTED_BRANCH = 'Semua';
 
 // =============================================================
+// ANDROID DOUBLE-SUBMIT GUARD — Mencegah save berulang
+// Penyebab: double-tap, slow network menyebabkan tombol diklik
+// lagi sebelum loading muncul, atau gesture Android yang
+// menghasilkan dua touchend event berturutan.
+//
+// Cara pakai: panggil acquireSubmitLock(key) sebelum fetch.
+//   - Mengembalikan true  → aman untuk lanjut
+//   - Mengembalikan false → ada operasi yang sama sedang berjalan, ABORT
+// Panggil releaseSubmitLock(key) di finally block setelah selesai.
+// =============================================================
+const _submitLocks = {};
+
+/**
+ * Coba kunci aksi dengan kunci unik.
+ * @param {string} key  - nama operasi, misal 'bayar', 'kasKeluar', dsb
+ * @param {number} ttl  - milidetik maksimum lock aktif (default 15 detik)
+ * @returns {boolean}   - true = boleh lanjut, false = tolak (duplicate)
+ */
+function acquireSubmitLock(key, ttl = 15000) {
+    const now = Date.now();
+    const lock = _submitLocks[key];
+    // Jika lock ada dan belum expired, tolak
+    if (lock && (now - lock) < ttl) {
+        console.warn(`[SubmitGuard] ❌ Ditolak: "${key}" sudah dalam proses.`);
+        return false;
+    }
+    _submitLocks[key] = now;
+    return true;
+}
+
+/**
+ * Lepas kunci setelah operasi selesai (sukses atau gagal).
+ * @param {string} key
+ */
+function releaseSubmitLock(key) {
+    delete _submitLocks[key];
+}
+
+// =============================================================
 // PROTEKSI DATA: pastikan semua array di DATA selalu valid
 // Mencegah TypeError saat .find()/.filter()/.map() dipanggil
 // pada properti yang undefined atau bukan array.
@@ -2344,6 +2399,9 @@ window.onload = () => {
 
         initMainApp();
     }
+    // Inisialisasi scheduler auto-reaktivasi shift
+    initShiftScheduler();
+
     updateTimeBadge();
     setInterval(updateTimeBadge, 1000);
     setInterval(() => {
@@ -2539,6 +2597,7 @@ async function loadShiftForAbsen() {
 }
 
 async function konfirmasiAbsen() {
+    if (!acquireSubmitLock('absen')) return; // ← GUARD
     const modalAwal = Number(document.getElementById('absen-modal-awal').value) || 0;
     const shiftNamaEl = document.getElementById('absen-shift-nama').innerText || '';
     // Cari nama shift lengkap dari DATA.shifts agar terkoneksi akurat
@@ -2569,6 +2628,12 @@ async function konfirmasiAbsen() {
         localStorage.setItem('shift_id', shiftId);
         localStorage.setItem('shift_jam_start', waktuMulaiFormatted);
         localStorage.setItem('shift_start_iso', sekarang.toISOString());
+
+        // Simpan jam_mulai & jam_selesai shift untuk keperluan auto-reaktivasi
+        if (matchedShift) {
+            localStorage.setItem('shift_jam_mulai', cleanTime(matchedShift.Jam_Mulai || matchedShift.jam_mulai || '00:00'));
+            localStorage.setItem('shift_jam_selesai', cleanTime(matchedShift.Jam_Selesai || matchedShift.jam_selesai || '23:59'));
+        }
 
         // Kirim Absen Masuk
         await fetch(API_URL, {
@@ -2608,6 +2673,8 @@ async function konfirmasiAbsen() {
     } catch (e) {
         console.error(e);
         Swal.fire('Error', 'Gagal memulai shift: ' + (e.message || e), 'error');
+    } finally {
+        releaseSubmitLock('absen');
     }
 
     loading(false);
@@ -2619,6 +2686,21 @@ async function konfirmasiAbsen() {
 async function doLogin() {
     const u = document.getElementById('user').value;
     const p = document.getElementById('pass').value;
+    if (!u || !p) return Swal.fire('Perhatian','Username dan password tidak boleh kosong','warning');
+    
+    // Guard dengan acquireSubmitLock - lebih longgar karena in-memory
+    // TTL 5 detik saja (bukan 15 detik default) untuk login
+    if (!acquireSubmitLock('login', 5000)) return;
+    
+    const btnLogin = document.querySelector('.btn-login');
+    if (btnLogin) { btnLogin.disabled = true; btnLogin.style.opacity = '0.7'; }
+    
+    // Fallback: pastikan button selalu di-enable kembali setelah 5 detik
+    const fallbackTimer = setTimeout(() => {
+        if (btnLogin) { btnLogin.disabled = false; btnLogin.style.opacity = ''; }
+        releaseSubmitLock('login');
+    }, 5000);
+    
     loading(true);
     try {
         const r = await fetch(API_URL, { method:"POST", body: JSON.stringify({action:'login', user:u, pass:p}) });
@@ -2627,12 +2709,22 @@ async function doLogin() {
             localStorage.setItem('user_nama',   res.name || u);
             localStorage.setItem('user_role',   res.role || 'Kasir');
             localStorage.setItem('user_cabang', res.cabang || '');
+            loading(false);
+            clearTimeout(fallbackTimer);
+            releaseSubmitLock('login');
             setTimeout(() => location.reload(), 100);
+            return;
         } else {
             Swal.fire('Akses Ditolak', 'Username/Password Salah', 'error');
         }
-    } catch(e) { Swal.fire('Error','Gagal terhubung ke server','error'); }
-    loading(false);
+    } catch(e) {
+        Swal.fire('Error','Gagal terhubung ke server','error');
+    } finally {
+        clearTimeout(fallbackTimer);
+        loading(false);
+        if (btnLogin) { btnLogin.disabled = false; btnLogin.style.opacity = ''; }
+        releaseSubmitLock('login');
+    }
 }
 
 function logout() {
@@ -3407,11 +3499,16 @@ function hitungKembalian() {
 }
 
 async function eksekusiPembayaran() {
+    if (!acquireSubmitLock('bayar')) return; // ← GUARD: tolak double-tap
     const checks = document.querySelectorAll('.split-check:checked');
-    if (checks.length === 0) return Swal.fire('Peringatan','Pilih item yang akan dibayar!','warning');
+    if (checks.length === 0) { releaseSubmitLock('bayar'); return Swal.fire('Peringatan','Pilih item yang akan dibayar!','warning'); }
     const totalPcs = CART.reduce((acc,curr) => acc + curr.qty, 0);
-    if (checks.length === totalPcs) await prosesBayarFinal();
-    else await prosesSplitBill();
+    try {
+        if (checks.length === totalPcs) await prosesBayarFinal();
+        else await prosesSplitBill();
+    } finally {
+        releaseSubmitLock('bayar');
+    }
 }
 
 // prosesBayarFinal: see fixed version below
@@ -3882,6 +3979,7 @@ async function simpanEditTransaksi() {
         confirmButtonColor: '#f59e0b'
     });
     if (!konfirmasi.isConfirmed) return;
+    if (!acquireSubmitLock('editTrx')) return; // ← GUARD
 
     // --- Ambil data dari state ---
     const trxLama  = EDIT_TRX_DATA.trx;
@@ -3998,6 +4096,7 @@ async function simpanEditTransaksi() {
         // Data lokal sudah diperbarui; API gagal tidak blokir UI
         console.warn('[EditTransaksi] Sinkronisasi API gagal:', e.message);
     } finally {
+        releaseSubmitLock('editTrx');
         loading(false);
     }
 
@@ -4914,6 +5013,7 @@ async function simpanShift() {
         if (!confirm.isConfirmed) return;
     }
 
+    if (!acquireSubmitLock('simpanShift')) return; // ← GUARD
     loading(true);
 
     try {
@@ -4950,6 +5050,8 @@ async function simpanShift() {
     } catch (e) {
         console.error(e);
         Swal.fire('Error', 'Gagal terhubung ke server', 'error');
+    } finally {
+        releaseSubmitLock('simpanShift');
     }
     loading(false);
 }
@@ -5134,14 +5236,15 @@ function modalEditUser(username, role, nama, cabang) {
 }
 
 async function simpanUser() {
+    if (!acquireSubmitLock('simpanUser')) return; // ← GUARD
     const usernameLama = document.getElementById('user-form-username-lama').value.trim();
     const username = document.getElementById('user-form-username').value.trim();
     const password = document.getElementById('user-form-password').value.trim();
     const role     = document.getElementById('user-form-role').value;
     const nama     = document.getElementById('user-form-nama').value.trim();
     const cabang   = document.getElementById('user-form-cabang').value;
-    if (!username || !nama || (!usernameLama && !password)) return Swal.fire('Lengkapi Data','Username, nama, dan password wajib diisi','warning');
-    if (password && password.length < 4) return Swal.fire('Password Pendek','Password minimal 4 karakter','warning');
+    if (!username || !nama || (!usernameLama && !password)) { releaseSubmitLock('simpanUser'); return Swal.fire('Lengkapi Data','Username, nama, dan password wajib diisi','warning'); }
+    if (password && password.length < 4) { releaseSubmitLock('simpanUser'); return Swal.fire('Password Pendek','Password minimal 4 karakter','warning'); }
     loading(true);
     try {
         const res = await fetch(API_URL,{method:"POST",body:JSON.stringify({action:usernameLama?'updateUser':'addUser',username_lama:usernameLama,username,password,role,nama,cabang})}).then(r=>r.json());
@@ -5151,6 +5254,7 @@ async function simpanUser() {
             Swal.fire({title:usernameLama?'User Diperbarui!':'User Ditambahkan!',icon:'success',timer:1800,showConfirmButton:false});
         } else { Swal.fire('Gagal',res.message||'Terjadi kesalahan','error'); }
     } catch(e){Swal.fire('Error','Gagal terhubung ke server','error');}
+    finally { releaseSubmitLock('simpanUser'); }
     loading(false);
 }
 
@@ -5190,132 +5294,279 @@ const _tgl = () => new Date().toLocaleString('id-ID', {
 });
 
 // ── Style bersama ─────────────────────────────────────────────────────────────
-    // _style(): CSS struk thermal — berlaku datar (tanpa @media print wrapper)
-    // sehingga bekerja di blob Android (dirender langsung) DAN browser desktop
-    // (browser menggunakan @media print di bagian bawah fungsi ini).
-    function _style() {
-    return `<style>
-        /* ── RESET ─────────────────────────────────── */
-        * { box-sizing:border-box; margin:0; padding:0; }
+// _style(forBlob):
+//   forBlob=true  → CSS untuk blob Android: .sk selalu visible, tanpa @media
+//   forBlob=false → CSS untuk desktop: tersembunyi di layar, muncul saat print
+//
+// Target printer: thermal 58mm — content area 44mm
+// Prinsip ketajaman thermal:
+//   • Font monospace integer px (tidak ada sub-pixel blur)
+//   • font-weight:700+ agar tinta thermal meresap penuh
+//   • line-height ketat, letter-spacing 0 (tidak ada anti-aliasing)
+//   • Semua warna hitam murni #000, background putih #fff
+//   • -webkit-font-smoothing:none agar tidak ada smoothing
+// ─────────────────────────────────────────────────────────────────────────────
+function _style(forBlob) {
+    const base = `
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: none;
+            font-smoothing: none;
+        }
 
-        /* ── WRAPPER STRUK ─────────────────────────── */
+        /* ── WRAPPER UTAMA — 44mm content di kertas 58mm ── */
         .sk {
-            width:40mm;
-            margin:0 auto;
-            padding:2mm 1mm 4mm;
-            font-family:'Courier New', Courier, monospace;
-            font-size:10.5px;
-            font-weight:500;
-            line-height:1.3;
-            color:#000;
-            background:#fff;
+            width: 44mm;
+            margin: 0;
+            padding: 1mm 0 6mm 0;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.35;
+            color: #000;
+            background: #fff;
+            letter-spacing: 0;
+            word-spacing: 0;
         }
 
-        /* ── LOGO ──────────────────────────────────── */
+        /* ── LOGO ── */
         .sk-logo {
-            display:block;
-            width:64px;
-            height:64px;
-            object-fit:contain;
-            margin:0 auto 4px;
-            filter:grayscale(100%) contrast(16) brightness(0.9);
-            image-rendering:crisp-edges;
-            -webkit-print-color-adjust:exact;
-            print-color-adjust:exact;
+            display: block;
+            width: 56px;
+            height: 56px;
+            object-fit: contain;
+            margin: 0 auto 3px;
+            filter: grayscale(100%) invert(1) contrast(3) invert(1) brightness(1.8);
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
 
-        /* ── TYPOGRAPHY ────────────────────────────── */
-        .b   { font-weight:700; }
-        .bb  { font-weight:800; }
-        .tc  { text-align:center; }
-        .tr  { text-align:right; }
-        .uc  { text-transform:uppercase; }
-        .f8  { font-size:8px; }
-        .f9  { font-size:9px; }
-        .f10 { font-size:10px; }
-        .f11 { font-size:11px; }
-        .f12 { font-size:12px; }
-        .f14 { font-size:13px; }
+        /* ── TIPOGRAFI — ukuran integer agar tajam di thermal ── */
+        .b   { font-weight: 700; }
+        .bb  { font-weight: 900; }
+        .tc  { text-align: center; }
+        .tr  { text-align: right; }
+        .uc  { text-transform: uppercase; }
+        .f8  { font-size: 8px;  font-weight: 700; }
+        .f9  { font-size: 9px;  font-weight: 700; }
+        .f10 { font-size: 10px; font-weight: 700; }
+        .f11 { font-size: 11px; font-weight: 700; }
+        .f12 { font-size: 12px; font-weight: 700; }
+        .f14 { font-size: 14px; font-weight: 900; }
 
-        /* ── GARIS ──────────────────────────────────── */
-        .hrd { border:none; border-top:1px dashed #000; margin:3px 0; width:100%; display:block; }
-        .hrs { border:none; border-top:1.5px solid #000; margin:3px 0; width:100%; display:block; }
+        /* ── GARIS — hitam penuh ── */
+        .hrd {
+            border: none;
+            border-top: 1px dashed #000;
+            margin: 4px 0;
+            width: 100%;
+            display: block;
+        }
+        .hrs {
+            border: none;
+            border-top: 2px solid #000;
+            margin: 4px 0;
+            width: 100%;
+            display: block;
+        }
 
-        /* ── TABEL ──────────────────────────────────── */
-        table { width:100%; border-collapse:collapse; }
-        td    { padding:1px 0; vertical-align:top; line-height:1.3; }
-        .cl   { width:28%; }
-        .cs   { width:5%; }
-        .cv   { width:67%; }
+        /* ── TABEL ── */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+        td {
+            padding: 1px 0;
+            vertical-align: top;
+            line-height: 1.35;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+        /* Kolom label : nilai */
+        .cl  { width: 30%; font-weight: 700; }
+        .cs  { width: 6%;  font-weight: 700; }
+        .cv  { width: 64%; }
 
-        /* ── BADGE & BOX ────────────────────────────── */
+        /* ── BADGE ── */
         .badge {
-            display:inline-block;
-            border:1px solid #000;
-            padding:1px 5px;
-            font-size:8px;
-            font-weight:700;
-            letter-spacing:.5px;
+            display: inline-block;
+            border: 1.5px solid #000;
+            padding: 1px 5px;
+            font-size: 9px;
+            font-weight: 900;
+            letter-spacing: .5px;
         }
+
+        /* ── BOX SISA TAGIHAN ── */
         .box-sisa {
-            border:1px solid #000;
-            text-align:center;
-            font-weight:700;
-            font-size:10px;
-            padding:3px 0;
-            margin:3px 0;
+            border: 2px solid #000;
+            text-align: center;
+            font-weight: 900;
+            font-size: 11px;
+            padding: 4px 0;
+            margin: 4px 0;
+            letter-spacing: .3px;
         }
 
-        tr { page-break-inside:avoid; }
+        tr { page-break-inside: avoid; }
+    `;
 
-        /* ── BROWSER DESKTOP: sembunyikan di layar ──── */
-        @media screen { .sk { display:none; } }
-
-        /* ── BROWSER DESKTOP: tampilkan saat print ──── */
-        @media print {
-            @page { size:42mm auto; margin:0; }
-            * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+    if (forBlob) {
+        return `<style>
+            ${base}
             html, body {
-                width:42mm !important;
-                margin:0 !important; padding:0 !important;
-                background:#fff !important;
+                margin: 0;
+                padding: 0;
+                background: #fff;
+                width: 44mm;
             }
-            body > *:not(#section-to-print) { display:none !important; }
-            #section-to-print {
-                display:block !important;
-                position:fixed !important;
-                left:0; top:0;
-                width:42mm !important;
-                margin:0 !important; padding:0 !important;
+            .sk { display: block !important; }
+        </style>`;
+    } else {
+        return `<style>
+            ${base}
+            @media screen { .sk { display: none; } }
+            @media print {
+                @page { size: 58mm auto; margin: 0; }
+                * {
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }
+                html, body {
+                    width: 58mm !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    background: #fff !important;
+                }
+                body > *:not(#section-to-print) { display: none !important; }
+                #section-to-print {
+                    display: block !important;
+                    position: fixed !important;
+                    left: 7mm;
+                    top: 0;
+                    width: 44mm !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+                .sk { display: block !important; width: 44mm !important; }
             }
-            .sk { display:block !important; width:40mm !important; }
+        </style>`;
+    }
+}
+
+// ── Eksekusi cetak — otomatis deteksi platform ───────────────────────────────
+// Desktop browser  → inject ke #section-to-print + window.print()
+// Android Median   → buat blob HTML → gonative/median.print.printPage(url)
+//                    Fallback: pakai data: URI jika blob URL tidak bisa diakses
+// ─────────────────────────────────────────────────────────────────────────────
+function _doPrint(bodyHtml) {
+    const isMedianApp = !!(
+        window.median   ||
+        window.gonative ||
+        navigator.userAgent.toLowerCase().includes('gonative') ||
+        navigator.userAgent.toLowerCase().includes('median')
+    );
+
+    // Pastikan bodyHtml terbungkus .sk
+    var contentHtml = bodyHtml.trim().startsWith('<div class="sk">')
+        ? bodyHtml
+        : '<div class="sk">' + bodyHtml + '</div>';
+
+    if (isMedianApp) {
+        // ── ANDROID / MEDIAN.CO ─────────────────────────────────────────────
+        setTimeout(function() {
+            try {
+                // Bangun dokumen HTML standalone untuk blob
+                var blobDoc = '<!DOCTYPE html>\n'
+                    + '<html><head>\n'
+                    + '<meta charset="UTF-8">\n'
+                    + '<meta name="viewport" content="width=166,initial-scale=1.0">\n'
+                    + _style(true)   // CSS blob: .sk selalu visible, 44mm
+                    + '</head><body style="margin:0;padding:0;background:#fff;width:44mm;">\n'
+                    + contentHtml
+                    + '\n</body></html>';
+
+                // Coba blob URL dulu (lebih reliable di Median baru)
+                var blobUrl = null;
+                try {
+                    var blob = new Blob([blobDoc], { type: 'text/html;charset=utf-8' });
+                    blobUrl = URL.createObjectURL(blob);
+                } catch(blobErr) {
+                    console.warn('[Print] Blob gagal:', blobErr);
+                }
+
+                // Coba data: URI sebagai alternatif jika blob gagal
+                var dataUri = 'data:text/html;charset=utf-8,' + encodeURIComponent(blobDoc);
+
+                var cleanup = function(url) {
+                    if (url && url.startsWith('blob:')) {
+                        setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+                    }
+                };
+
+                function tryPrint(url) {
+                    if (window.gonative && gonative.print && gonative.print.printPage) {
+                        gonative.print.printPage({ url: url });
+                        cleanup(url);
+                        return true;
+                    } else if (window.median && median.print && median.print.printPage) {
+                        median.print.printPage({ url: url });
+                        cleanup(url);
+                        return true;
+                    }
+                    return false;
+                }
+
+                // Urutan prioritas: blob → data URI → window.open → window.print
+                if (blobUrl && tryPrint(blobUrl)) return;
+                if (tryPrint(dataUri)) return;
+
+                // Fallback: buka tab baru
+                var win = window.open(blobUrl || dataUri, '_blank');
+                if (win) {
+                    win.onload = function() {
+                        win.focus();
+                        win.print();
+                        setTimeout(function() { win.close(); cleanup(blobUrl); }, 3000);
+                    };
+                } else {
+                    // Popup diblokir — fallback ke window.print()
+                    var el = document.getElementById('section-to-print');
+                    if (!el) { el = document.createElement('div'); el.id = 'section-to-print'; document.body.appendChild(el); }
+                    el.innerHTML = _style(false) + contentHtml;
+                    window.focus();
+                    window.print();
+                    cleanup(blobUrl);
+                }
+
+            } catch(err) {
+                console.warn('[Print] Error, fallback window.print:', err);
+                var el2 = document.getElementById('section-to-print');
+                if (!el2) { el2 = document.createElement('div'); el2.id = 'section-to-print'; document.body.appendChild(el2); }
+                el2.innerHTML = _style(false) + contentHtml;
+                window.focus();
+                window.print();
+            }
+        }, 350);
+
+    } else {
+        // ── DESKTOP BROWSER ──────────────────────────────────────────────────
+        var el = document.getElementById('section-to-print');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'section-to-print';
+            document.body.appendChild(el);
         }
-    </style>`;
+        el.innerHTML = _style(false) + contentHtml;
+        setTimeout(function() { window.focus(); window.print(); }, 450);
+    }
 }
     
-// ── Seksi pembayaran — GANTI BAGIAN INI ──
-const bayarRows = bayar > 0 ? `
-    <tr><td colspan="2"><hr class="hrd"></td></tr>
-    <tr>
-        <td class="f10">METODE</td>
-        <td class="tr f10">${metode.toUpperCase()}</td>
-    </tr>
-    <tr>
-        <td class="f10">BAYAR</td>
-        <td class="tr f10">Rp ${_rp(bayar)}</td>
-    </tr>
-    <tr>
-        <td class="b f11">KEMBALI</td>
-        <td class="tr b f11">Rp ${_rp(kembalian)}</td>
-    </tr>` : `
-    <tr>
-        <td colspan="2" class="tc" style="padding:5px 0 2px">
-            <div style="border:1.5px solid #000;display:inline-block;padding:2px 8px;font-size:9px;font-weight:750;letter-spacing:1px">
-                -- DRAFT BILL --
-            </div>
-        </td>
-    </tr>`;
-
 // ── Print Struk Normal ────────────────────────────────────────────────────────
 function printStruk(metode="CASH", bayar=0, forcedType=null, forcedVal=null) {
     const nomorMeja  = (document.getElementById('label-meja')?.innerText||'').replace(/^\D+/g,'') || '0';
@@ -5332,16 +5583,16 @@ function printStruk(metode="CASH", bayar=0, forcedType=null, forcedVal=null) {
     const nomorTrx   = (window.LAST_TRX_ID || '').split('|')[0].trim() || ('-' );
 
 
-    // ── Item rows: nama bold, qty×harga normal ──
+    // ── Item rows: nama bold uppercase, qty×harga di baris kedua ──
     const itemRows = CART.map(i => {
-        const nm = i.nama.length > 22 ? i.nama.substring(0,21)+'…' : i.nama;
+        const nm = i.nama.length > 24 ? i.nama.substring(0,23)+'…' : i.nama;
         return `
         <tr>
-            <td colspan="2" class="b f11 uc" style="padding-top:4px">${nm}</td>
+            <td colspan="2" class="bb f11 uc" style="padding-top:5px;letter-spacing:.2px">${nm}</td>
         </tr>
         <tr>
-            <td class="f10">&nbsp;${i.qty} x ${_rp(i.harga)}</td>
-            <td class="tr f10">${_rp(i.qty * i.harga)}</td>
+            <td class="f10 b" style="padding-left:2px">${i.qty} x Rp ${_rp(i.harga)}</td>
+            <td class="tr f10 bb">Rp ${_rp(i.qty * i.harga)}</td>
         </tr>`;
     }).join('');
 
@@ -5374,40 +5625,40 @@ const bayarRows = bayar > 0 ? `
         <!-- HEADER -->
         <div class="tc">
             <img src="${cabang.logo}" class="sk-logo" onerror="this.style.display='none'">
-            <div class="b f12 uc" style="margin-top:3px;letter-spacing:.4px">${cabang.nama}</div>
-            <div class="f9" style="margin-top:1px">${cabang.alamat}</div>
-            ${cabang.telp ? `<div class="f9">Telp: ${cabang.telp}</div>` : ''}
+            <div class="bb f12 uc" style="margin-top:4px;letter-spacing:.5px">${cabang.nama}</div>
+            <div class="f9" style="margin-top:2px;font-weight:700">${cabang.alamat}</div>
+            ${cabang.telp ? `<div class="f9" style="font-weight:700">Telp: ${cabang.telp}</div>` : ''}
         </div>
 
-        <hr class="hrd">
+        <hr class="hrs">
 
         <!-- INFO TRANSAKSI -->
         <table>
             <tr>
-                <td class="cl f10 b">NO. TRX</td>
+                <td class="cl f10">NO.TRX</td>
                 <td class="cs f10">:</td>
                 <td class="cv f9" style="word-break:break-all">${nomorTrx}</td>
             </tr>
             <tr>
-                <td class="cl f10 b">TGL</td>
+                <td class="cl f10">TGL</td>
                 <td class="cs f10">:</td>
-                <td class="cv f9">${_tgl()}</td>
+                <td class="cv f10">${_tgl()}</td>
             </tr>
             <tr>
-                <td class="cl f10 b">MEJA</td>
+                <td class="cl f10">MEJA</td>
                 <td class="cs f10">:</td>
-                <td class="cv f11 b">${nomorMeja}</td>
+                <td class="cv f12 bb">${nomorMeja}</td>
             </tr>
             <tr>
-                <td class="cl f10 b">CUST</td>
+                <td class="cl f10">CUST</td>
                 <td class="cs f10">:</td>
                 <td class="cv f10">${custName}</td>
             </tr>
-	    <tr>
-        	<td class="cl f10 b">KASIR</td>
-        	<td class="cs f10">:</td>
-        	<td class="cv f10 b">${kasirNama}</td>
-    	    </tr>
+            <tr>
+                <td class="cl f10">KASIR</td>
+                <td class="cs f10">:</td>
+                <td class="cv f10 b">${kasirNama}</td>
+            </tr>
         </table>
 
         <hr class="hrd">
@@ -5420,13 +5671,13 @@ const bayarRows = bayar > 0 ? `
         <!-- RINGKASAN -->
         <table>
             <tr>
-                <td class="f10">Subtotal</td>
-                <td class="tr f10">Rp ${_rp(subtotal)}</td>
+                <td class="f10 b">Subtotal</td>
+                <td class="tr f10 b">Rp ${_rp(subtotal)}</td>
             </tr>
-            <tr>
-                <td class="f10">Diskon</td>
-                <td class="tr f10">- Rp ${_rp(nomDiskon)}</td>
-            </tr>
+            ${nomDiskon > 0 ? `<tr>
+                <td class="f10 b">Diskon</td>
+                <td class="tr f10 b">- Rp ${_rp(nomDiskon)}</td>
+            </tr>` : ''}
             <tr>
                 <td colspan="2"><hr class="hrs"></td>
             </tr>
@@ -5440,9 +5691,9 @@ const bayarRows = bayar > 0 ? `
         <hr class="hrd">
 
         <!-- FOOTER -->
-        <div class="tc" style="line-height:1.5">
-            <div class="b f10">${cabang.footer}</div>
-            <div class="f9">Manage by @barsolutions</div>
+        <div class="tc" style="line-height:1.6">
+            <div class="bb f10">${cabang.footer}</div>
+            <div class="f9 b">Manage by @barsolutions</div>
         </div>
 
     </div>`;
@@ -5455,16 +5706,17 @@ function printStrukSplit(paidItems, totalBayar, metode, sisaTagihan) {
     const labelMeja = (document.getElementById('label-meja')?.innerText||'MEJA: -').replace('MEJA: ','');
     const custName  = (document.getElementById('cust-name')?.value||'Guest').substring(0,16);
     const cabang    = getCabangInfo();
+    const kasirNama = localStorage.getItem('user_nama') || KASIR || 'Kasir';
 
     const itemRows = paidItems.map(i => {
-        const nm = i.nama.length > 22 ? i.nama.substring(0,21)+'…' : i.nama;
+        const nm = i.nama.length > 24 ? i.nama.substring(0,23)+'…' : i.nama;
         return `
         <tr>
-            <td colspan="2" class="b f11 uc" style="padding-top:4px">${nm}</td>
+            <td colspan="2" class="bb f11 uc" style="padding-top:5px;letter-spacing:.2px">${nm}</td>
         </tr>
         <tr>
-            <td class="f10">&nbsp;${i.qty} x ${_rp(i.harga)}</td>
-            <td class="tr f10">${_rp(i.qty * i.harga)}</td>
+            <td class="f10 b" style="padding-left:2px">${i.qty} x Rp ${_rp(i.harga)}</td>
+            <td class="tr f10 bb">Rp ${_rp(i.qty * i.harga)}</td>
         </tr>`;
     }).join('');
 
@@ -5473,34 +5725,34 @@ function printStrukSplit(paidItems, totalBayar, metode, sisaTagihan) {
         <!-- HEADER -->
         <div class="tc">
             <img src="${cabang.logo}" class="sk-logo" onerror="this.style.display='none'">
-            <div class="b f12 uc" style="margin-top:3px;letter-spacing:.4px">${cabang.nama}</div>
-            <div style="margin-top:4px"><span class="badge">PARTIAL PAYMENT</span></div>
+            <div class="bb f12 uc" style="margin-top:4px;letter-spacing:.5px">${cabang.nama}</div>
+            <div style="margin-top:5px"><span class="badge">PARTIAL PAYMENT</span></div>
         </div>
 
-        <hr class="hrd">
+        <hr class="hrs">
 
         <!-- INFO -->
         <table>
             <tr>
-                <td class="cl f10 b">MEJA</td>
+                <td class="cl f10">MEJA</td>
                 <td class="cs f10">:</td>
-                <td class="cv f11 b">${labelMeja}</td>
+                <td class="cv f12 bb">${labelMeja}</td>
             </tr>
             <tr>
-                <td class="cl f10 b">CUST</td>
+                <td class="cl f10">CUST</td>
                 <td class="cs f10">:</td>
-                <td class="cv f10">${custName}</td>
+                <td class="cv f10 b">${custName}</td>
             </tr>
             <tr>
-                <td class="cl f10 b">TGL</td>
+                <td class="cl f10">TGL</td>
                 <td class="cs f10">:</td>
-                <td class="cv f9">${_tgl()}</td>
+                <td class="cv f10 b">${_tgl()}</td>
             </tr>
-	    <tr>
-        	<td class="cl f10 b">KASIR</td>
-        	<td class="cs f10">:</td>
-        	<td class="cv f10 b">${kasirNama}</td>
-    	    </tr>
+            <tr>
+                <td class="cl f10">KASIR</td>
+                <td class="cs f10">:</td>
+                <td class="cv f10 b">${kasirNama}</td>
+            </tr>
         </table>
 
         <hr class="hrd">
@@ -5526,9 +5778,9 @@ function printStrukSplit(paidItems, totalBayar, metode, sisaTagihan) {
         <hr class="hrd">
 
         <!-- FOOTER -->
-        <div class="tc" style="line-height:1.5">
-            <div class="b f10">${cabang.footer}</div>
-            <div class="f9">Manage by @barsolutions</div>
+        <div class="tc" style="line-height:1.6">
+            <div class="bb f10">${cabang.footer}</div>
+            <div class="f9 b">Manage by @barsolutions</div>
         </div>
 
     </div>`;
@@ -5536,97 +5788,6 @@ function printStrukSplit(paidItems, totalBayar, metode, sisaTagihan) {
     _doPrint(html);
 }
 
-// ── Eksekusi cetak — otomatis deteksi platform ───────────────────────────────
-// Desktop browser  → window.print() (dialog print browser)
-// Android Median   → gonative.print.printPage() (dialog print Android native)
-// ─────────────────────────────────────────────────────────────────────────────
-function _doPrint(bodyHtml) {
-    // Deteksi platform: Median.co APK atau browser desktop
-    const isMedianApp = !!(
-        window.median   ||
-        window.gonative ||
-        navigator.userAgent.toLowerCase().includes('gonative') ||
-        navigator.userAgent.toLowerCase().includes('median')
-    );
-
-    if (isMedianApp) {
-        // ── ANDROID / MEDIAN.CO ──────────────────────────────────────────────
-        // Buat dokumen HTML standalone lengkap sebagai Blob.
-        // _style() menghasilkan CSS datar (BUKAN di dalam @media print) sehingga
-        // langsung dirender oleh WebView / print renderer Android.
-        // PENTING: JANGAN inject _style() ke #section-to-print dulu — blob sudah
-        // membawa semua CSS sendiri. .sk TIDAK punya display:none di luar @media screen
-        // sehingga langsung terlihat di blob.
-        setTimeout(function() {
-            try {
-                var struкHtml = '<div class="sk">' + bodyHtml.replace(/^<div class="sk">|<\/div>$/g,'') + '</div>';
-                // Jika bodyHtml sudah wrapped .sk, pakai apa adanya
-                var contentHtml = bodyHtml.trim().startsWith('<div class="sk">') ? bodyHtml : '<div class="sk">' + bodyHtml + '</div>';
-
-                var blobDoc = '<!DOCTYPE html>\n'
-                    + '<html><head>\n'
-                    + '<meta charset="UTF-8">\n'
-                    + '<meta name="viewport" content="width=device-width,initial-scale=1.0">\n'
-                    + _style()   // CSS struk lengkap (datar, tanpa @media print wrapper)
-                    + '</head><body style="margin:0;padding:0;background:#fff;">\n'
-                    + contentHtml
-                    + '\n</body></html>';
-
-                var blob    = new Blob([blobDoc], { type: 'text/html;charset=utf-8' });
-                var blobUrl = URL.createObjectURL(blob);
-                var cleanup = function() { setTimeout(function(){ URL.revokeObjectURL(blobUrl); }, 30000); };
-
-                if (window.gonative && gonative.print && gonative.print.printPage) {
-                    gonative.print.printPage({ url: blobUrl });
-                    cleanup();
-                } else if (window.median && median.print && median.print.printPage) {
-                    median.print.printPage({ url: blobUrl });
-                    cleanup();
-                } else {
-                    // Fallback: buka tab baru dan print
-                    var win = window.open(blobUrl, '_blank');
-                    if (win) {
-                        win.onload = function() {
-                            win.focus();
-                            win.print();
-                            setTimeout(function() { win.close(); URL.revokeObjectURL(blobUrl); }, 2000);
-                        };
-                    } else {
-                        // Popup diblokir — inject ke DOM lalu window.print()
-                        var el = document.getElementById('section-to-print');
-                        if (!el) { el = document.createElement('div'); el.id = 'section-to-print'; document.body.appendChild(el); }
-                        el.innerHTML = _style() + contentHtml;
-                        window.focus();
-                        window.print();
-                        URL.revokeObjectURL(blobUrl);
-                    }
-                }
-            } catch(err) {
-                console.warn('[Print] Android blob gagal, fallback window.print:', err);
-                var el2 = document.getElementById('section-to-print');
-                if (!el2) { el2 = document.createElement('div'); el2.id = 'section-to-print'; document.body.appendChild(el2); }
-                el2.innerHTML = _style() + bodyHtml;
-                window.focus();
-                window.print();
-            }
-        }, 350);
-
-    } else {
-        // ── DESKTOP BROWSER ──────────────────────────────────────────────────
-        // Inject ke #section-to-print, lalu window.print().
-        // @media print di dalam _style() menyembunyikan semua elemen lain
-        // dan menampilkan hanya #section-to-print.
-        var el = document.getElementById('section-to-print');
-        if (!el) {
-            el = document.createElement('div');
-            el.id = 'section-to-print';
-            document.body.appendChild(el);
-        }
-        el.innerHTML = _style() + bodyHtml;
-        setTimeout(function() { window.focus(); window.print(); }, 450);
-    }
-}
-    
 // =============================================================
 // MANAJEMEN PRODUK
 // =============================================================
@@ -6009,7 +6170,109 @@ async function downloadFullReport() {
 // =============================================================
 // UTILS
 // =============================================================
-function loading(s) { document.getElementById('loader').style.display = s ? 'flex' : 'none'; }
+function loading(s) { const l=document.getElementById('loader'); if(l){l.style.display=s?'flex':'none';} }
+
+// =============================================================
+// SHIFT AUTO-REAKTIVASI — Jadwalkan aktifkan shift esok hari
+// sesuai jam_mulai yang ditentukan admin
+// =============================================================
+
+/**
+ * Simpan jadwal reaktivasi shift ke localStorage.
+ * Kunci: 'shift_reactivate_<id>'
+ * Value: JSON { id, nama, jamMulai, targetDate (yyyy-mm-dd esok hari) }
+ */
+function scheduleShiftReactivation(shiftInfo) {
+    try {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const targetDate = tomorrow.toLocaleDateString('en-CA'); // yyyy-mm-dd
+
+        const schedule = {
+            id:         shiftInfo.id,
+            nama:       shiftInfo.nama,
+            jamMulai:   shiftInfo.jamMulai || '00:00',
+            targetDate: targetDate
+        };
+
+        const key = 'shift_reactivate_' + shiftInfo.id;
+        localStorage.setItem(key, JSON.stringify(schedule));
+
+        console.log('[ShiftScheduler] Dijadwalkan reaktivasi:', schedule);
+    } catch(e) {
+        console.warn('[ShiftScheduler] Gagal jadwalkan:', e);
+    }
+}
+
+/**
+ * Cek setiap menit apakah ada shift yang perlu diaktifkan kembali.
+ * Dipanggil saat app init dan berjalan terus via setInterval.
+ */
+async function checkAndReactivateShifts() {
+    try {
+        const today = new Date().toLocaleDateString('en-CA');
+        const nowH = new Date().getHours() * 60 + new Date().getMinutes();
+
+        // Kumpulkan semua kunci jadwal dari localStorage
+        const scheduleKeys = Object.keys(localStorage).filter(k => k.startsWith('shift_reactivate_'));
+
+        for (const key of scheduleKeys) {
+            let schedule;
+            try { schedule = JSON.parse(localStorage.getItem(key)); } catch(e) { continue; }
+            if (!schedule || !schedule.id) { localStorage.removeItem(key); continue; }
+
+            // Hanya proses jika sudah hari target
+            if (schedule.targetDate !== today) continue;
+
+            // Cek apakah sudah lewat jam mulai shift
+            const parseM = (t) => {
+                const m = String(t || '00:00').match(/(\d{1,2})[:.](\d{2})/);
+                return m ? parseInt(m[1]) * 60 + parseInt(m[2]) : 0;
+            };
+            const jamMulaiM = parseM(schedule.jamMulai);
+
+            // Aktifkan jika waktu sekarang >= jam mulai (dengan toleransi 0 menit)
+            if (nowH >= jamMulaiM) {
+                console.log('[ShiftScheduler] Mengaktifkan kembali shift:', schedule.nama, 'jam', schedule.jamMulai);
+
+                // Panggil API untuk aktifkan shift
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action:  'updateShift',
+                        id_lama: schedule.id,
+                        status:  'Aktif'
+                    })
+                }).then(r => r.json()).catch(() => null);
+
+                // Hapus jadwal setelah berhasil (atau gagal — coba lagi interval berikut jika gagal)
+                if (res && res.status === 'success') {
+                    localStorage.removeItem(key);
+                    console.log('[ShiftScheduler] ✅ Shift', schedule.nama, 'berhasil diaktifkan kembali');
+
+                    // Refresh DATA agar tampilan langsung update (hanya jika sudah login)
+                    const isLoggedIn = !!localStorage.getItem('user_nama');
+                    if (isLoggedIn && typeof refreshData === 'function') {
+                        refreshData();
+                    }
+                } else {
+                    console.warn('[ShiftScheduler] Gagal aktifkan shift, akan dicoba lagi:', schedule);
+                }
+            }
+        }
+    } catch(e) {
+        console.warn('[ShiftScheduler] Error saat cek reaktivasi:', e);
+    }
+}
+
+/**
+ * Inisialisasi scheduler: jalankan sekali saat load, lalu setiap 60 detik.
+ */
+function initShiftScheduler() {
+    checkAndReactivateShifts(); // cek langsung
+    setInterval(checkAndReactivateShifts, 60 * 1000); // setiap 1 menit
+}
+
 function updateTimeBadge() { const el=document.getElementById('badge-time'); if(el)el.innerText=new Date().toLocaleTimeString(); }
 function resetDiscountUI() {
     const dv=document.getElementById('disc-val'); if(dv)dv.value=0;
@@ -6162,6 +6425,9 @@ async function cancelPesananMeja() {
 // =============================================================
 async function prosesBayarFinal() {
     if (!validateAdminBranch()) return;
+    // Nonaktifkan tombol konfirmasi segera agar tidak bisa diklik lagi
+    const btnKonfirmasi = document.getElementById('btn-konfirmasi-lunas');
+    if (btnKonfirmasi) { btnKonfirmasi.disabled = true; btnKonfirmasi.textContent = 'Memproses...'; }
     try {
         const met           = document.querySelector('input[name="metode"]:checked').value;
         const nilaiBayar    = Number(document.getElementById('input-bayar').value) || window.CURRENT_TOTAL;
@@ -6220,6 +6486,9 @@ async function prosesBayarFinal() {
         }
     } catch (e) {
         Swal.fire('Gagal!', e.message, 'error');
+    } finally {
+        // Re-enable tombol (jika modal masih terbuka karena error)
+        if (btnKonfirmasi) { btnKonfirmasi.disabled = false; btnKonfirmasi.textContent = 'KONFIRMASI PEMBAYARAN'; }
     }
     loading(false);
 }
@@ -6228,6 +6497,9 @@ async function prosesBayarFinal() {
 // [FIX #6] prosesSplitBill() — payload cabang via getActiveCabang()
 // =============================================================
 async function prosesSplitBill() {
+    // Lock sudah dipegang eksekusiPembayaran; nonaktifkan tombol sebagai lapisan kedua
+    const btnKonfirmasi = document.getElementById('btn-konfirmasi-lunas');
+    if (btnKonfirmasi) { btnKonfirmasi.disabled = true; btnKonfirmasi.textContent = 'Memproses...'; }
     try {
         const met           = document.querySelector('input[name="metode"]:checked').value;
         const checks        = document.querySelectorAll('.split-check:checked');
@@ -6284,12 +6556,11 @@ async function prosesSplitBill() {
         }
     } catch (e) {
         Swal.fire('Gagal', e.toString(), 'error');
+    } finally {
+        if (btnKonfirmasi) { btnKonfirmasi.disabled = false; btnKonfirmasi.textContent = 'KONFIRMASI PEMBAYARAN'; }
     }
     loading(false);
 }
-
-// =============================================================
-// [FIX #7] konfirmasiPindahMeja() — payload cabang via getActiveCabang()
 // =============================================================
 async function konfirmasiPindahMeja(mejaTujuan) {
     bootstrap.Modal.getInstance(document.getElementById('modalPindahMeja'))?.hide();
@@ -6362,9 +6633,10 @@ async function konfirmasiPindahMeja(mejaTujuan) {
 // =============================================================
 async function simpanKasKeluar() {
     if (!validateAdminBranch()) return;
+    if (!acquireSubmitLock('kasKeluar')) return; // ← GUARD
     const ket = document.getElementById('exp-ket').value;
     const nom = document.getElementById('exp-nom').value;
-    if (!ket || !nom) return Swal.fire('Error', 'Data belum lengkap', 'error');
+    if (!ket || !nom) { releaseSubmitLock('kasKeluar'); return Swal.fire('Error', 'Data belum lengkap', 'error'); }
     loading(true);
     const activeCabang = getActiveCabang(); // FIXED
     try {
@@ -6384,6 +6656,8 @@ async function simpanKasKeluar() {
         Swal.fire('✅ Berhasil', 'Pengeluaran tercatat', 'success').then(() => refreshData());
     } catch (e) {
         Swal.fire('Error', 'Gagal simpan', 'error');
+    } finally {
+        releaseSubmitLock('kasKeluar');
     }
     loading(false);
 }
@@ -6393,9 +6667,10 @@ async function simpanKasKeluar() {
 // =============================================================
 async function simpanKasMasuk() {
     if (!validateAdminBranch()) return;
+    if (!acquireSubmitLock('kasMasuk')) return; // ← GUARD
     const ket = document.getElementById('inc-ket').value;
     const nom = document.getElementById('inc-nom').value;
-    if (!ket || !nom) return Swal.fire('Error', 'Data belum lengkap', 'error');
+    if (!ket || !nom) { releaseSubmitLock('kasMasuk'); return Swal.fire('Error', 'Data belum lengkap', 'error'); }
     loading(true);
     const activeCabang = getActiveCabang(); // FIXED
     try {
@@ -6417,12 +6692,15 @@ async function simpanKasMasuk() {
         refreshData();
     } catch (e) {
         Swal.fire('Error', 'Gagal terhubung', 'error');
+    } finally {
+        releaseSubmitLock('kasMasuk');
     }
     loading(false);
 }
 
 // ====================== CLOSING SHIFT (FULL FIXED) ======================
 async function showClosingModal() {
+    if (!acquireSubmitLock('closing', 60000)) return; // ← GUARD: 60 detik TTL untuk proses panjang
     const activeCabang = getActiveCabang();
     const userNama     = localStorage.getItem('user_nama') || KASIR || '-';
     const modalAwal    = parseFloat(localStorage.getItem('shift_modal_awal') || 0);
@@ -6640,8 +6918,40 @@ async function showClosingModal() {
                 saldoAkhir
             };
 
+            // ============================================================
+            // AUTO-NONAKTIFKAN SHIFT setelah closing
+            // ============================================================
+            try {
+                const shiftIdToDeactivate = shiftId || localStorage.getItem('shift_id') || '';
+                if (shiftIdToDeactivate) {
+                    await fetch(API_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'updateShift',
+                            id_lama: shiftIdToDeactivate,
+                            status: 'Nonaktif'
+                        })
+                    });
+                    console.log('[Shift] Auto-nonaktif shift ID:', shiftIdToDeactivate);
+
+                    // ========================================================
+                    // JADWALKAN REAKTIVASI SHIFT esok hari sesuai jam_mulai
+                    // ========================================================
+                    const jamMulaiTersimpan = localStorage.getItem('shift_jam_mulai') ||
+                        (ACTIVE_SHIFT && cleanTime(ACTIVE_SHIFT.Jam_Mulai || ACTIVE_SHIFT.jam_mulai)) || '00:00';
+
+                    scheduleShiftReactivation({
+                        id:       shiftIdToDeactivate,
+                        nama:     shiftNama,
+                        jamMulai: jamMulaiTersimpan
+                    });
+                }
+            } catch(eDeact) {
+                console.warn('[Shift] Gagal auto-nonaktif:', eDeact);
+            }
+
             // Bersihkan session shift
-            ['shift_modal_awal','shift_nama','shift_id','shift_jam_start','shift_start_iso'].forEach(k => localStorage.removeItem(k));
+            ['shift_modal_awal','shift_nama','shift_id','shift_jam_start','shift_start_iso','shift_jam_mulai','shift_jam_selesai'].forEach(k => localStorage.removeItem(k));
 
             loading(false);
 
@@ -6668,6 +6978,8 @@ async function showClosingModal() {
     } catch (e) {
         Swal.close();
         Swal.fire('Error', e.message || 'Gagal closing shift', 'error');
+    } finally {
+        releaseSubmitLock('closing');
     }
     loading(false);
 }
@@ -7134,12 +7446,23 @@ function showRiwayatPengeluaran() {
             </tr>`;
         }).join("");
 
+    // Simpan data expenses ke window agar bisa diakses oleh fungsi download
+    window._lastPengeluaranData = { expenses, start, end, total };
+
+    const periodeStart = new Date(start+"T00:00:00").toLocaleDateString("id-ID",{day:"2-digit",month:"long",year:"numeric"});
+    const periodeEnd   = new Date(end+"T00:00:00").toLocaleDateString("id-ID",{day:"2-digit",month:"long",year:"numeric"});
+    const periodeLabel = start !== end ? `${periodeStart} — ${periodeEnd}` : periodeStart;
+
     Swal.fire({
         title: `<i class="bi bi-box-arrow-up text-danger me-2"></i>Riwayat Pengeluaran`,
         html: `
-            <div style="margin-bottom:10px;text-align:left;font-size:11px;color:#64748b">
-                Periode: <strong>${new Date(start+"T00:00:00").toLocaleDateString("id-ID",{day:"2-digit",month:"long",year:"numeric"})}</strong>
-                ${ start!==end ? " — <strong>"+new Date(end+"T00:00:00").toLocaleDateString("id-ID",{day:"2-digit",month:"long",year:"numeric"})+"</strong>" : "" }
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+                <div style="font-size:11px;color:#64748b;text-align:left">
+                    Periode: <strong>${periodeLabel}</strong>
+                </div>
+                <button onclick="downloadReportPengeluaran()" style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#ef4444,#dc2626);color:white;border:none;border-radius:10px;padding:7px 14px;font-size:11px;font-weight:700;cursor:pointer;box-shadow:0 3px 8px rgba(239,68,68,.35);transition:all .2s" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 5px 14px rgba(239,68,68,.45)'" onmouseout="this.style.transform='none';this.style.boxShadow='0 3px 8px rgba(239,68,68,.35)'">
+                    <i class="bi bi-file-earmark-pdf-fill"></i> Download PDF
+                </button>
             </div>
             <div style="max-height:360px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:10px">
                 <table style="width:100%;border-collapse:collapse">
@@ -7167,6 +7490,139 @@ function showRiwayatPengeluaran() {
         confirmButtonColor: "#ef4444",
         customClass: { popup: "text-start" }
     });
+}
+
+// =============================================================
+// DOWNLOAD REPORT PENGELUARAN (PDF via jsPDF)
+// =============================================================
+function downloadReportPengeluaran() {
+    const cached = window._lastPengeluaranData;
+    if (!cached || !cached.expenses || cached.expenses.length === 0) {
+        Swal.fire({ icon: "warning", title: "Tidak ada data", text: "Tidak ada data pengeluaran untuk diunduh.", confirmButtonColor: "#ef4444" });
+        return;
+    }
+
+    if (typeof jspdf === 'undefined' && typeof window.jspdf === 'undefined' && typeof jsPDF === 'undefined') {
+        Swal.fire({ icon: "error", title: "Library tidak tersedia", text: "jsPDF belum dimuat. Coba muat ulang halaman.", confirmButtonColor: "#ef4444" });
+        return;
+    }
+
+    try {
+        const { jsPDF } = window.jspdf || window;
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+        const { expenses, start, end, total } = cached;
+        const cabangInfo = getCabangInfo();
+
+        const periodeStart = new Date(start+"T00:00:00").toLocaleDateString("id-ID",{day:"2-digit",month:"long",year:"numeric"});
+        const periodeEnd   = new Date(end+"T00:00:00").toLocaleDateString("id-ID",{day:"2-digit",month:"long",year:"numeric"});
+        const periodeLabel = start !== end ? `${periodeStart} s/d ${periodeEnd}` : periodeStart;
+
+        const dicetak = new Date().toLocaleString("id-ID",{day:"2-digit",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"});
+
+        // ── HEADER ──────────────────────────────────────────────
+        doc.setFillColor(239, 68, 68);
+        doc.rect(0, 0, 210, 32, 'F');
+
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(16);
+        doc.setFont(undefined, 'bold');
+        doc.text('LAPORAN PENGELUARAN', 14, 12);
+
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        doc.text(cabangInfo.nama.toUpperCase(), 14, 19);
+        doc.text(`Periode: ${periodeLabel}`, 14, 25);
+        doc.text(`Dicetak: ${dicetak}`, 14, 30);
+
+        // ── INFO BOX ────────────────────────────────────────────
+        doc.setFillColor(255, 242, 242);
+        doc.setDrawColor(252, 165, 165);
+        doc.roundedRect(14, 36, 182, 18, 3, 3, 'FD');
+
+        doc.setTextColor(220, 38, 38);
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'bold');
+        doc.text(`TOTAL PENGELUARAN: Rp ${total.toLocaleString("id-ID")}`, 105, 44, { align: 'center' });
+
+        doc.setTextColor(100, 116, 139);
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'normal');
+        doc.text(`${expenses.length} item pengeluaran tercatat`, 105, 50, { align: 'center' });
+
+        // ── TABEL ───────────────────────────────────────────────
+        const sorted = [...expenses].sort((a,b) =>
+            new Date(b.Timestamp||b.timestamp||0) - new Date(a.Timestamp||a.timestamp||0)
+        );
+
+        const tableBody = sorted.map((e, i) => {
+            const ts  = e.Timestamp || e.timestamp || e.Waktu || e.waktu;
+            const tgl = ts ? new Date(ts).toLocaleString("id-ID",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}) : "-";
+            const ket = e.Keterangan || e.keterangan || "-";
+            const kas = e.Kasir || e.kasir || e.User || e.user || "-";
+            const nom = Number(e.Nominal || e.nominal || 0);
+            const cab = e.Cabang || e.cabang || "-";
+            return [
+                String(i + 1),
+                tgl,
+                ket,
+                kas,
+                cab,
+                `Rp ${nom.toLocaleString("id-ID")}`
+            ];
+        });
+
+        doc.autoTable({
+            startY: 58,
+            head: [['#', 'WAKTU', 'KETERANGAN', 'KASIR', 'CABANG', 'NOMINAL']],
+            body: tableBody,
+            foot: [['', '', '', '', 'TOTAL', `Rp ${total.toLocaleString("id-ID")}`]],
+            headStyles: {
+                fillColor: [239, 68, 68],
+                textColor: [255, 255, 255],
+                fontStyle: 'bold',
+                fontSize: 8,
+                halign: 'center'
+            },
+            footStyles: {
+                fillColor: [255, 242, 242],
+                textColor: [220, 38, 38],
+                fontStyle: 'bold',
+                fontSize: 9
+            },
+            bodyStyles: { fontSize: 7.5 },
+            columnStyles: {
+                0: { halign: 'center', cellWidth: 8 },
+                1: { cellWidth: 32 },
+                2: { cellWidth: 55 },
+                3: { cellWidth: 28 },
+                4: { cellWidth: 28 },
+                5: { halign: 'right', fontStyle: 'bold', cellWidth: 31 }
+            },
+            alternateRowStyles: { fillColor: [255, 248, 248] },
+            showFoot: 'lastPage',
+            margin: { left: 14, right: 14 }
+        });
+
+        // ── FOOTER setiap halaman ────────────────────────────────
+        const pages = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pages; i++) {
+            doc.setPage(i);
+            doc.setFontSize(7.5);
+            doc.setTextColor(148, 163, 184);
+            doc.text(
+                `D&B Coffee Premium — Laporan Pengeluaran | Hal ${i} dari ${pages}`,
+                105, 290, { align: 'center' }
+            );
+        }
+
+        const fileName = `Pengeluaran_${start}_${end}.pdf`;
+        doc.save(fileName);
+
+    } catch(err) {
+        console.error('[downloadReportPengeluaran]', err);
+        Swal.fire({ icon: "error", title: "Gagal Generate PDF", text: err.message || "Terjadi kesalahan.", confirmButtonColor: "#ef4444" });
+    }
 }
 
 // =============================================================
@@ -7209,11 +7665,34 @@ document.addEventListener('DOMContentLoaded', function() {
     // ANDROID FINAL INIT: jalankan setelah semua DOM siap
     // ============================================================
 
-    // Cegah double-tap zoom pada seluruh dokumen
+    // Cegah double-tap zoom HANYA pada elemen non-interaktif
+    // PENTING: jangan preventDefault pada elemen interaktif (button, input, a, select, dll)
+    // karena akan memblokir onclick/click event di Android WebView
     let lastTap = 0;
     document.addEventListener('touchend', function(e) {
+        // Daftar lengkap tag elemen interaktif yang TIDAK boleh di-preventDefault
+        const interactiveTags = [
+            'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA', 'A', 'LABEL', 
+            'OPTION', 'OPTGROUP', 'DATALIST', 'OUTPUT', 'PROGRESS', 
+            'METER', 'FIELDSET', 'LEGEND', 'FORM'
+        ];
+        
+        const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+        
+        // Cek apakah elemen adalah elemen interaktif atau di dalam elemen interaktif
+        const isInteractive = interactiveTags.includes(tag)
+            || e.target.closest('button, a, input, select, textarea, label, form, [onclick], [role="button"], [tabindex]')
+            || e.target.hasAttribute('contenteditable')
+            || (e.target.getAttribute('role') && ['button', 'link', 'checkbox', 'radio', 'textbox', 'switch', 'slider', 'spinbutton'].includes(e.target.getAttribute('role')));
+        
+        // Jika elemen interaktif, JANGAN preventDefault - biarkan bekerja normal
+        if (isInteractive) return;
+        
+        // Hanya pada elemen non-interaktif: cegah double-tap zoom
         const now = Date.now();
-        if (now - lastTap < 300) { e.preventDefault(); }
+        if (now - lastTap < 300) { 
+            e.preventDefault(); 
+        }
         lastTap = now;
     }, { passive: false });
 
