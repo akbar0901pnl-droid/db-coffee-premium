@@ -5320,7 +5320,7 @@ const _tgl = () => new Date().toLocaleString('id-ID', {
 //   forBlob=true  → CSS untuk blob Android: .sk selalu visible, tanpa @media
 //   forBlob=false → CSS untuk desktop: tersembunyi di layar, muncul saat print
 //
-// Target printer: thermal 58mm — content area 44mm
+// Target printer: thermal 42mm — content area 38mm
 // Prinsip ketajaman thermal:
 //   • Font monospace integer px (tidak ada sub-pixel blur)
 //   • font-weight:700+ agar tinta thermal meresap penuh
@@ -5338,9 +5338,9 @@ function _style(forBlob) {
             font-smoothing: none;
         }
 
-        /* ── WRAPPER UTAMA — 44mm content di kertas 58mm ── */
+        /* ── WRAPPER UTAMA — 38mm content di kertas 42mm ── */
         .sk {
-            width: 44mm;
+            width: 38mm;
             margin: 0;
             padding: 1mm 0 6mm 0;
             font-family: 'Courier New', Courier, monospace;
@@ -5439,28 +5439,41 @@ function _style(forBlob) {
     `;
 
     if (forBlob) {
+        // Blob untuk Android Median/GoNative — pakai @page 42mm agar
+        // median.print.printPage() / gonative.print.printPage() langsung
+        // mencetak di kertas thermal 42mm tanpa dialog ukuran kertas
         return `<style>
+            @page {
+                size: 42mm auto;
+                margin: 0;
+            }
             ${base}
             html, body {
                 margin: 0;
                 padding: 0;
                 background: #fff;
-                width: 44mm;
+                width: 42mm;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
-            .sk { display: block !important; }
+            .sk {
+                display: block !important;
+                width: 38mm !important;
+                margin: 0 auto !important;
+            }
         </style>`;
     } else {
         return `<style>
             ${base}
             @media screen { .sk { display: none; } }
             @media print {
-                @page { size: 58mm auto; margin: 0; }
+                @page { size: 42mm auto; margin: 0; }
                 * {
                     -webkit-print-color-adjust: exact !important;
                     print-color-adjust: exact !important;
                 }
                 html, body {
-                    width: 58mm !important;
+                    width: 42mm !important;
                     margin: 0 !important;
                     padding: 0 !important;
                     background: #fff !important;
@@ -5469,13 +5482,13 @@ function _style(forBlob) {
                 #section-to-print {
                     display: block !important;
                     position: fixed !important;
-                    left: 7mm;
+                    left: 0;
                     top: 0;
-                    width: 44mm !important;
+                    width: 42mm !important;
                     margin: 0 !important;
                     padding: 0 !important;
                 }
-                .sk { display: block !important; width: 44mm !important; }
+                .sk { display: block !important; width: 38mm !important; margin: 0 auto !important; }
             }
         </style>`;
     }
@@ -5483,9 +5496,69 @@ function _style(forBlob) {
 
 // ── Eksekusi cetak — otomatis deteksi platform ───────────────────────────────
 // Desktop browser  → inject ke #section-to-print + window.print()
-// Android Median   → buat blob HTML → gonative/median.print.printPage(url)
-//                    Fallback: pakai data: URI jika blob URL tidak bisa diakses
+// Android (semua)  → RawBT Bluetooth PERTAMA (priority utama)
+//                    Fallback 1: gonative/median.print.printPage(url)
+//                    Fallback 2: data: URI / window.open / window.print
+//
+// RawBT: aplikasi Android printer thermal Bluetooth paling umum.
+// Cara kerja: kirim intent Android rawbt://print?html=<encoded_html>
+// atau buka URI rawbt://html/<base64_html> — RawBT decode & cetak langsung.
+// Paper width 42mm sudah dikonfigurasi di RawBT app (pengaturan printer).
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ── RawBT: preferensi paper width (disimpan di localStorage) ─────────────────
+// User bisa ubah via tombol pengaturan cetak jika perlu
+var _rawbtPaperWidth = (function() {
+    try { return parseInt(localStorage.getItem('rawbt_paper_width') || '42'); } catch(e) { return 42; }
+})();
+
+// ── Helper: deteksi apakah berjalan di Android (WebView atau browser) ─────────
+function _isAndroid() {
+    return /android/i.test(navigator.userAgent);
+}
+
+// ── Helper: coba buka RawBT intent, return true jika berhasil dikirim ─────────
+// RawBT menerima 2 format:
+//   1. rawbt://html/<base64url_encoded_html>   — lebih reliable
+//   2. intent://print#Intent;scheme=rawbt;...  — Android intent URI
+function _tryRawBT(htmlContent) {
+    try {
+        // Encode HTML ke base64 (btoa standard, lalu URL-safe)
+        var b64 = btoa(unescape(encodeURIComponent(htmlContent)));
+        var rawbtUrl = 'rawbt://html/' + b64;
+
+        // Coba buka via iframe agar tidak navigasi halaman
+        var iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+        iframe.src = rawbtUrl;
+        setTimeout(function() {
+            try { document.body.removeChild(iframe); } catch(e) {}
+        }, 3000);
+
+        console.log('[Print] RawBT intent dikirim via rawbt://html/...');
+        return true;
+    } catch(e) {
+        console.warn('[Print] RawBT gagal:', e);
+        return false;
+    }
+}
+
+// ── Build HTML blob untuk cetak (42mm) ────────────────────────────────────────
+function _buildBlobDoc(contentHtml) {
+    return '<!DOCTYPE html>\n'
+        + '<html><head>\n'
+        + '<meta charset="UTF-8">\n'
+        + '<meta name="viewport" content="width=158,initial-scale=1.0,maximum-scale=1.0">\n'
+        + '<style>@page{size:42mm auto;margin:0;}</style>\n'
+        + _style(true)
+        + '</head>'
+        + '<script>window.onload=function(){setTimeout(function(){window.print();},200);}<\/script>'
+        + '<body style="margin:0;padding:0;background:#fff;width:42mm;">\n'
+        + contentHtml
+        + '\n</body></html>';
+}
+
 function _doPrint(bodyHtml) {
     const isMedianApp = !!(
         window.median   ||
@@ -5493,27 +5566,21 @@ function _doPrint(bodyHtml) {
         navigator.userAgent.toLowerCase().includes('gonative') ||
         navigator.userAgent.toLowerCase().includes('median')
     );
+    const isAndroid = _isAndroid();
 
     // Pastikan bodyHtml terbungkus .sk
     var contentHtml = bodyHtml.trim().startsWith('<div class="sk">')
         ? bodyHtml
         : '<div class="sk">' + bodyHtml + '</div>';
 
-    if (isMedianApp) {
-        // ── ANDROID / MEDIAN.CO ─────────────────────────────────────────────
+    if (isAndroid || isMedianApp) {
+        // ── ANDROID — Prioritas: RawBT → Median/GoNative → Fallback ────────
+        // viewport width=158 ≈ 42mm @ 96 dpi (158px / 96 * 25.4 = 41.8mm)
         setTimeout(function() {
             try {
-                // Bangun dokumen HTML standalone untuk blob
-                var blobDoc = '<!DOCTYPE html>\n'
-                    + '<html><head>\n'
-                    + '<meta charset="UTF-8">\n'
-                    + '<meta name="viewport" content="width=166,initial-scale=1.0">\n'
-                    + _style(true)   // CSS blob: .sk selalu visible, 44mm
-                    + '</head><body style="margin:0;padding:0;background:#fff;width:44mm;">\n'
-                    + contentHtml
-                    + '\n</body></html>';
+                var blobDoc = _buildBlobDoc(contentHtml);
 
-                // Coba blob URL dulu (lebih reliable di Median baru)
+                // Coba blob URL (lebih reliable di Median baru)
                 var blobUrl = null;
                 try {
                     var blob = new Blob([blobDoc], { type: 'text/html;charset=utf-8' });
@@ -5522,7 +5589,6 @@ function _doPrint(bodyHtml) {
                     console.warn('[Print] Blob gagal:', blobErr);
                 }
 
-                // Coba data: URI sebagai alternatif jika blob gagal
                 var dataUri = 'data:text/html;charset=utf-8,' + encodeURIComponent(blobDoc);
 
                 var cleanup = function(url) {
@@ -5531,7 +5597,17 @@ function _doPrint(bodyHtml) {
                     }
                 };
 
-                function tryPrint(url) {
+                // ── PRIORITAS 1: RawBT Bluetooth ────────────────────────────
+                // RawBT adalah app Android untuk cetak thermal via Bluetooth.
+                // Kirim HTML langsung — RawBT parse & cetak tanpa dialog.
+                // Pastikan RawBT terinstall & printer sudah dipasangkan di RawBT.
+                if (isAndroid && _tryRawBT(blobDoc)) {
+                    cleanup(blobUrl);
+                    return;
+                }
+
+                // ── PRIORITAS 2: Median/GoNative print API ───────────────────
+                function tryMedianPrint(url) {
                     if (window.gonative && gonative.print && gonative.print.printPage) {
                         gonative.print.printPage({ url: url });
                         cleanup(url);
@@ -5544,11 +5620,10 @@ function _doPrint(bodyHtml) {
                     return false;
                 }
 
-                // Urutan prioritas: blob → data URI → window.open → window.print
-                if (blobUrl && tryPrint(blobUrl)) return;
-                if (tryPrint(dataUri)) return;
+                if (blobUrl && tryMedianPrint(blobUrl)) return;
+                if (tryMedianPrint(dataUri)) return;
 
-                // Fallback: buka tab baru
+                // ── PRIORITAS 3: Buka tab baru (auto-print via window.onload) ─
                 var win = window.open(blobUrl || dataUri, '_blank');
                 if (win) {
                     win.onload = function() {
