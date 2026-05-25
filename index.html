@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <!-- ANDROID / MEDIAN.CO OPTIMIZED VIEWPORT -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>D&B COFFEE PREMIUM - POS SYSTEM v6.0</title>
+    <title>D&B COFFEE PREMIUM - POS SYSTEM v12.1.1</title>
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1348,7 +1348,7 @@
             <div style="z-index:3;position:relative">
                 <img src="https://lh3.googleusercontent.com/d/1qiyKZSuCfpSOjWq0ciH6wodGK9bLXDLW" alt="Logo" style="width:180px;height:auto;filter:drop-shadow(0 0 15px rgba(241,196,15,.3))" class="mb-4">
                 <h2 class="fw-bold m-0 text-uppercase" style="letter-spacing:3px;color:#f1c40f">D&B COFFEE</h2>
-                <p class="small opacity-75 mt-2">PREMIUM ROASTERY & POS SYSTEM v4.0</p>
+                <p class="small opacity-75 mt-2">PREMIUM ROASTERY & POS SYSTEM v12.1.1</p>
                 <div class="mt-4 mx-auto" style="width:40px;height:3px;background:#f1c40f"></div>
             </div>
         </div>
@@ -5354,6 +5354,10 @@ const _tgl = () => new Date().toLocaleString('id-ID', {
 // ─────────────────────────────────────────────────────────────────────────────
 function _style(forBlob) {
     // CSS dasar thermal — dipakai semua mode
+    // PERBAIKAN v12:
+    //   • -webkit-text-size-adjust: none — cegah Android auto-scale font (penyebab karakter rusak)
+    //   • font-size dalam px integer — cegah sub-pixel rendering
+    //   • word-break: break-word — cegah overflow yang memotong karakter
     const base = `
         * {
             box-sizing: border-box;
@@ -5361,13 +5365,15 @@ function _style(forBlob) {
             padding: 0;
             -webkit-font-smoothing: none;
             font-smoothing: none;
+            -webkit-text-size-adjust: none;
+            text-size-adjust: none;
         }
 
-        /* ── WRAPPER UTAMA — 38mm content di kertas 42mm ── */
+        /* ── WRAPPER UTAMA — 144px content di kertas 160px (≈42mm @96dpi) ── */
         .sk {
-            width: 38mm;
+            width: 144px;
             margin: 0;
-            padding: 1mm 0 6mm 0;
+            padding: 2px 0 8px 0;
             font-family: 'Courier New', Courier, monospace;
             font-size: 12px;
             font-weight: 700;
@@ -5401,6 +5407,7 @@ function _style(forBlob) {
         .f10 { font-size: 10px; font-weight: 700; }
         .f11 { font-size: 11px; font-weight: 700; }
         .f12 { font-size: 12px; font-weight: 700; }
+        .f13 { font-size: 13px; font-weight: 900; }
         .f14 { font-size: 14px; font-weight: 900; }
 
         /* ── GARIS — hitam penuh ── */
@@ -5463,21 +5470,25 @@ function _style(forBlob) {
 
     if (forBlob) {
         // ── Mode RawBT / Blob Android ──────────────────────────────────────
-        // PENTING: Tidak ada @media screen/print — RawBT render HTML apa adanya.
-        // Tidak ada window.print() — RawBT cetak langsung tanpa dialog.
-        // Width body di-set ke 42mm agar sesuai kertas thermal.
+        // PERBAIKAN v12:
+        //   • Tidak ada @media — RawBT render HTML apa adanya
+        //   • Gunakan px bukan mm (lebih compatible dengan RawBT HTML renderer)
+        //   • Font-size dalam px integer (cegah sub-pixel rendering = karakter blur/rusak)
+        //   • -webkit-font-smoothing:none agar karakter tajam di thermal
         return `<style>
             html, body {
                 margin: 0;
                 padding: 0;
                 background: #fff;
-                width: 42mm;
-                max-width: 42mm;
+                width: 160px;
+                max-width: 160px;
+                -webkit-text-size-adjust: none;
+                text-size-adjust: none;
             }
             .sk {
                 display: block !important;
                 visibility: visible !important;
-                width: 38mm !important;
+                width: 144px !important;
                 margin: 0 auto !important;
             }
             ${base}
@@ -5542,21 +5553,29 @@ function _isAndroid() {
 // btoa() bawaan browser GAGAL untuk karakter non-ASCII (huruf Indonesia,
 // Rp, dll) karena hanya support Latin-1. Solusi: encode manual via
 // TextEncoder (UTF-8 bytes) → Uint8Array → base64 string.
+// PERBAIKAN v12: chunk-based encoding untuk cegah stack overflow pada HTML besar
 function _utf8ToBase64(str) {
     try {
         // Cara modern — TextEncoder tersedia di semua Android 5+
         var bytes = new TextEncoder().encode(str);
+        // Chunk-based untuk menghindari stack overflow di Android WebView
+        // ketika HTML besar (logo base64, item banyak, dll)
+        var CHUNK = 8192;
         var binary = '';
-        var len = bytes.byteLength;
-        for (var i = 0; i < len; i++) {
-            binary += String.fromCharCode(bytes[i]);
+        for (var i = 0; i < bytes.byteLength; i += CHUNK) {
+            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
         }
         return btoa(binary);
     } catch(e) {
-        // Fallback lama — hanya untuk browser sangat tua
-        return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(_, p1) {
-            return String.fromCharCode(parseInt(p1, 16));
-        }));
+        // Fallback: gunakan encodeURIComponent
+        try {
+            return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(_, p1) {
+                return String.fromCharCode(parseInt(p1, 16));
+            }));
+        } catch(e2) {
+            console.error('[Print] Base64 encode gagal:', e2);
+            return null;
+        }
     }
 }
 
@@ -5569,53 +5588,137 @@ function _utf8ToBase64(str) {
 //   • HTML HARUS mengandung <meta charset="UTF-8"> agar karakter Indonesia tidak rusak
 //   • Tidak boleh ada window.print() di dalam HTML yang dikirim ke RawBT
 //   • RawBT render HTML langsung dan cetak — tidak pakai print dialog browser
-//   • Gambar URL eksternal mungkin tidak bisa diload jika tidak ada koneksi
+//
+// PERBAIKAN v12:
+//   • iframe.src TIDAK reliable untuk custom protocol di Android WebView/Median.co
+//     → Diganti dengan urutan fallback: median bridge → anchor click → location.href
+//   • Chunk-based base64 encoding untuk cegah stack overflow HTML besar
+//   • Strip gambar eksternal (URL bukan data:) dari HTML sebelum dikirim ke RawBT
+//     agar tidak terjadi hang/rusak karena RawBT coba load gambar online
 function _tryRawBT(htmlContent) {
     try {
-        // Pastikan HTML punya charset declaration
+        // 1. Pastikan charset UTF-8 ada di awal <head>
         if (htmlContent.indexOf('charset="UTF-8"') === -1 && htmlContent.indexOf("charset='UTF-8'") === -1) {
-            htmlContent = htmlContent.replace('<head>', '<head><meta charset="UTF-8">');
+            htmlContent = htmlContent.replace(/<head>/i, '<head><meta charset="UTF-8">');
         }
 
-        // Pastikan TIDAK ada window.print() dalam HTML yang dikirim ke RawBT
-        // (RawBT cetak sendiri, bukan via print dialog)
-        htmlContent = htmlContent.replace(/<'+'script[^>]*>[\s\S]*?window\.print[\s\S]*?<\/script>/gi, '');
+        // 2. Hapus semua tag <script> yang mengandung window.print()
+        //    (RawBT cetak langsung — print dialog TIDAK diperlukan)
+        htmlContent = htmlContent.replace(/<scr\x69pt[^>]*>[\s\S]*?window\.print[\s\S]*?<\/scr\x69pt>/gi, '');
 
-        // Encode ke base64 UTF-8 yang benar (bukan btoa biasa)
+        // 3. Ganti gambar eksternal (http/https) dengan placeholder kosong
+        //    agar RawBT tidak hang mencoba load URL gambar saat offline/BT
+        //    Gambar data: URI (base64) tetap dipertahankan
+        htmlContent = htmlContent.replace(
+            /(<img\s[^>]*\bsrc\s*=\s*["'])(https?:\/\/[^"']+)(["'][^>]*>)/gi,
+            function(_, before, url, after) {
+                // Cek apakah ada fallback onerror (kalau ada, biarkan — dia handle sendiri)
+                // Ganti src dengan data URI kosong 1x1 transparan agar render tidak hang
+                return before + 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==' + after;
+            }
+        );
+
+        // 4. Encode ke base64 UTF-8 yang benar
         var b64 = _utf8ToBase64(htmlContent);
+        if (!b64) {
+            console.warn('[Print] Base64 encode gagal, abort RawBT');
+            return false;
+        }
         var rawbtUrl = 'rawbt://html/' + b64;
+        console.log('[Print] RawBT URL length:', rawbtUrl.length, 'chars');
 
-        // Buka via iframe agar tidak navigasi halaman utama
-        var iframe = document.createElement('iframe');
-        iframe.style.cssText = 'display:none;width:0;height:0;border:0;position:absolute;left:-9999px;';
-        document.body.appendChild(iframe);
-        iframe.src = rawbtUrl;
-        setTimeout(function() {
-            try { document.body.removeChild(iframe); } catch(e) {}
-        }, 5000);
+        // ── Urutan trigger: Median bridge → GoNative bridge → anchor click → location.href ──
+        // ALASAN: iframe.src tidak trigger custom protocol intent di banyak Android WebView
 
-        console.log('[Print] RawBT intent dikirim (' + b64.length + ' chars)');
-        return true;
+        // METODE 1: Median.co JS bridge — paling reliable di app Median
+        if (window.median && window.median.open && window.median.open.external) {
+            try {
+                window.median.open.external({ url: rawbtUrl });
+                console.log('[Print] RawBT via median.open.external OK');
+                return true;
+            } catch(e1) { console.warn('[Print] median.open.external:', e1.message); }
+        }
+
+        // METODE 2: GoNative JS bridge
+        if (window.gonative && window.gonative.open && window.gonative.open.external) {
+            try {
+                window.gonative.open.external({ url: rawbtUrl });
+                console.log('[Print] RawBT via gonative.open.external OK');
+                return true;
+            } catch(e2) { console.warn('[Print] gonative.open.external:', e2.message); }
+        }
+
+        // METODE 3: Anchor click — bekerja di hampir semua Android WebView standar
+        //   Ini lebih reliable dari iframe karena Android meneruskan custom scheme ke
+        //   ActivityManager sebagai Intent, yang kemudian membuka RawBT
+        try {
+            var a = document.createElement('a');
+            a.setAttribute('href', rawbtUrl);
+            a.style.cssText = 'display:none;position:absolute;left:-9999px;top:-9999px;';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function() {
+                try { if (a.parentNode) a.parentNode.removeChild(a); } catch(e) {}
+            }, 2000);
+            console.log('[Print] RawBT via anchor.click() OK');
+            return true;
+        } catch(e3) { console.warn('[Print] anchor click:', e3.message); }
+
+        // METODE 4: window.open _system (Cordova-style)
+        try {
+            var w = window.open(rawbtUrl, '_system');
+            if (w !== null && w !== undefined) {
+                console.log('[Print] RawBT via window.open _system OK');
+                return true;
+            }
+        } catch(e4) { console.warn('[Print] window.open _system:', e4.message); }
+
+        // METODE 5: location.href — last resort, mungkin navigasi keluar sebentar
+        //   tapi Android kembali ke app karena RawBT terbuka sebagai Activity baru
+        try {
+            window.location.href = rawbtUrl;
+            console.log('[Print] RawBT via location.href OK');
+            return true;
+        } catch(e5) { console.warn('[Print] location.href:', e5.message); }
+
+        return false;
     } catch(e) {
-        console.warn('[Print] RawBT gagal:', e);
+        console.warn('[Print] _tryRawBT error:', e);
         return false;
     }
 }
 
-// ── Build HTML blob untuk cetak (42mm) ────────────────────────────────────────
+// ── Build HTML blob untuk cetak (42mm / ~160px) ───────────────────────────────
 // PENTING untuk RawBT:
-//   • TANPA <'+'script>window.print()<\/script> — RawBT cetak langsung, bukan via browser dialog
+//   • TANPA window.print() script — RawBT cetak langsung, bukan via browser dialog
 //   • TANPA @page / @media print — RawBT render HTML apa adanya, bukan print preview
-//   • charset UTF-8 wajib ada di <meta> agar huruf Indonesia tidak rusak
-//   • Width body = 42mm (atau 158px ~= 42mm @ 96dpi) agar pas di kertas thermal
+//   • charset UTF-8 HARUS di <head> paling atas agar huruf Indonesia tidak rusak
+//   • Width body = 160px (≈42mm @96dpi) agar pas di kertas thermal
+//   • PERBAIKAN v12: gunakan px, bukan mm, untuk kompatibilitas renderer RawBT
+//     yang tidak selalu mendukung satuan mm dengan benar
 function _buildBlobDoc(contentHtml) {
+    // Rawbt style: gunakan px bukan mm agar rendering lebih konsisten
+    var rawbtStyleOverride = '<style>'
+        + 'html,body{'
+        +   'margin:0;padding:0;background:#fff;'
+        +   'width:160px;max-width:160px;' // 42mm @ 96dpi
+        +   'font-family:"Courier New",Courier,monospace;'
+        + '}'
+        + '.sk{'
+        +   'display:block!important;visibility:visible!important;'
+        +   'width:144px!important;margin:0 auto!important;' // 38mm @ 96dpi
+        +   'padding:2px 0 10px 0;'
+        + '}'
+        + '</style>';
+
     return '<!DOCTYPE html>\n'
         + '<html><head>\n'
-        + '<meta charset="UTF-8">\n'
-        + '<meta name="viewport" content="width=158,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">\n'
+        + '<meta charset="UTF-8">\n'  // WAJIB di posisi PERTAMA untuk encoding benar
+        + '<meta name="viewport" content="width=160,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">\n'
         + _style(true)
+        + rawbtStyleOverride
         + '</head>'
-        + '<body style="margin:0;padding:0;background:#fff;width:42mm;max-width:42mm;">\n'
+        + '<body>\n'
         + contentHtml
         + '\n</body></html>';
 }
@@ -5640,21 +5743,40 @@ function _doPrint(bodyHtml) {
             try {
                 // ── PRIORITAS 1: RawBT Bluetooth ────────────────────────────
                 // Kirim dokumen TANPA window.print() — RawBT cetak langsung
+                // _tryRawBT sudah handle: median bridge → anchor click → location.href
                 if (isAndroid) {
                     var rawbtDoc = _buildBlobDoc(contentHtml);
-                    if (_tryRawBT(rawbtDoc)) return;
+                    if (_tryRawBT(rawbtDoc)) {
+                        // Tampilkan notifikasi sukses kirim ke RawBT (jika Swal tersedia)
+                        // Gunakan delay agar RawBT sempat membuka intent
+                        setTimeout(function() {
+                            if (window.Swal) {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Struk Dikirim',
+                                    text: 'Data struk berhasil dikirim ke printer thermal.',
+                                    toast: true,
+                                    position: 'bottom',
+                                    showConfirmButton: false,
+                                    timer: 2500,
+                                    timerProgressBar: true
+                                });
+                            }
+                        }, 800);
+                        return;
+                    }
                 }
 
                 // ── Untuk Median/GoNative & fallback: pakai blob DENGAN window.print() ─
                 var mediaPrintDoc = '<!DOCTYPE html>\n'
                     + '<html><head>\n'
                     + '<meta charset="UTF-8">\n'
-                    + '<meta name="viewport" content="width=158,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">\n'
+                    + '<meta name="viewport" content="width=160,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">\n'
                     + '<style>@page{size:42mm auto;margin:0;}</style>\n'
                     + _style(true)
                     + '</head>'
-                     + '<'+'script>window.onload=function(){setTimeout(function(){window.print();},200);}<\/script>'
-                    + '<body style="margin:0;padding:0;background:#fff;width:42mm;max-width:42mm;">\n'
+                    + '<scr\x69pt>window.onload=function(){setTimeout(function(){window.print();},200);}<\/script>'
+                    + '<body style="margin:0;padding:0;background:#fff;width:160px;max-width:160px;">\n'
                     + contentHtml
                     + '\n</body></html>';
 
