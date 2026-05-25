@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <!-- ANDROID / MEDIAN.CO OPTIMIZED VIEWPORT -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>D&B COFFEE PREMIUM - POS SYSTEM v6.0</title>
+    <title>D&B COFFEE PREMIUM - POS SYSTEM v12.1.2</title>
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1348,7 +1348,7 @@
             <div style="z-index:3;position:relative">
                 <img src="https://lh3.googleusercontent.com/d/1qiyKZSuCfpSOjWq0ciH6wodGK9bLXDLW" alt="Logo" style="width:180px;height:auto;filter:drop-shadow(0 0 15px rgba(241,196,15,.3))" class="mb-4">
                 <h2 class="fw-bold m-0 text-uppercase" style="letter-spacing:3px;color:#f1c40f">D&B COFFEE</h2>
-                <p class="small opacity-75 mt-2">PREMIUM ROASTERY & POS SYSTEM v4.0</p>
+                <p class="small opacity-75 mt-2">PREMIUM ROASTERY & POS SYSTEM v12.1.2</p>
                 <div class="mt-4 mx-auto" style="width:40px;height:3px;background:#f1c40f"></div>
             </div>
         </div>
@@ -5373,11 +5373,11 @@ function _style(forBlob) {
         .sk {
             width: 144px;
             margin: 0;
-            padding: 2px 0 8px 0;
+            padding: 2px 0 6px 0;
             font-family: 'Courier New', Courier, monospace;
-            font-size: 12px;
+            font-size: 10px;
             font-weight: 700;
-            line-height: 1.35;
+            line-height: 1.3;
             color: #000;
             background: #fff;
             letter-spacing: 0;
@@ -5387,10 +5387,10 @@ function _style(forBlob) {
         /* ── LOGO ── */
         .sk-logo {
             display: block;
-            width: 56px;
-            height: 56px;
+            width: 36px;
+            height: 36px;
             object-fit: contain;
-            margin: 0 auto 3px;
+            margin: 0 auto 2px;
             filter: grayscale(100%) contrast(2);
             image-rendering: pixelated;
             image-rendering: crisp-edges;
@@ -5402,26 +5402,26 @@ function _style(forBlob) {
         .tc  { text-align: center; }
         .tr  { text-align: right; }
         .uc  { text-transform: uppercase; }
-        .f8  { font-size: 8px;  font-weight: 700; }
-        .f9  { font-size: 9px;  font-weight: 700; }
-        .f10 { font-size: 10px; font-weight: 700; }
-        .f11 { font-size: 11px; font-weight: 700; }
-        .f12 { font-size: 12px; font-weight: 700; }
-        .f13 { font-size: 13px; font-weight: 900; }
-        .f14 { font-size: 14px; font-weight: 900; }
+        .f8  { font-size: 7px;  font-weight: 700; }
+        .f9  { font-size: 8px;  font-weight: 700; }
+        .f10 { font-size: 9px;  font-weight: 700; }
+        .f11 { font-size: 10px; font-weight: 700; }
+        .f12 { font-size: 11px; font-weight: 700; }
+        .f13 { font-size: 12px; font-weight: 900; }
+        .f14 { font-size: 13px; font-weight: 900; }
 
         /* ── GARIS — hitam penuh ── */
         .hrd {
             border: none;
             border-top: 1px dashed #000;
-            margin: 4px 0;
+            margin: 3px 0;
             width: 100%;
             display: block;
         }
         .hrs {
             border: none;
             border-top: 2px solid #000;
-            margin: 4px 0;
+            margin: 3px 0;
             width: 100%;
             display: block;
         }
@@ -5435,7 +5435,7 @@ function _style(forBlob) {
         td {
             padding: 1px 0;
             vertical-align: top;
-            line-height: 1.35;
+            line-height: 1.3;
             word-break: break-word;
             overflow-wrap: break-word;
         }
@@ -5459,9 +5459,9 @@ function _style(forBlob) {
             border: 2px solid #000;
             text-align: center;
             font-weight: 900;
-            font-size: 11px;
-            padding: 4px 0;
-            margin: 4px 0;
+            font-size: 9px;
+            padding: 3px 0;
+            margin: 3px 0;
             letter-spacing: .3px;
         }
 
@@ -5707,7 +5707,7 @@ function _buildBlobDoc(contentHtml) {
         + '.sk{'
         +   'display:block!important;visibility:visible!important;'
         +   'width:144px!important;margin:0 auto!important;' // 38mm @ 96dpi
-        +   'padding:2px 0 10px 0;'
+        +   'padding:2px 0 6px 0;'
         + '}'
         + '</style>';
 
@@ -5757,16 +5757,16 @@ function printStruk(metode="CASH", bayar=0, forcedType=null, forcedVal=null) {
     const nomorTrx   = (window.LAST_TRX_ID || '').split('|')[0].trim() || ('-' );
 
 
-    // ── Item rows: nama bold uppercase, qty×harga di baris kedua ──
+    // ── Item rows: nama di kiri, total di kanan, qty×harga di bawah kiri ──
     const itemRows = CART.map(i => {
-        const nm = i.nama.length > 24 ? i.nama.substring(0,23)+'...' : i.nama;
+        const nm = i.nama.length > 20 ? i.nama.substring(0,19)+'…' : i.nama;
         return `
         <tr>
-            <td colspan="2" class="bb f11 uc" style="padding-top:5px;letter-spacing:.2px">${nm}</td>
+            <td class="b f10 uc" style="padding-top:3px">${nm}</td>
+            <td class="tr bb f10" style="padding-top:3px">Rp ${_rp(i.qty * i.harga)}</td>
         </tr>
         <tr>
-            <td class="f10 b" style="padding-left:2px">${i.qty} x Rp ${_rp(i.harga)}</td>
-            <td class="tr f10 bb">Rp ${_rp(i.qty * i.harga)}</td>
+            <td colspan="2" class="f9" style="padding-left:2px;padding-bottom:1px">${i.qty} x Rp ${_rp(i.harga)}</td>
         </tr>`;
     }).join('');
 
@@ -5775,20 +5775,20 @@ function printStruk(metode="CASH", bayar=0, forcedType=null, forcedVal=null) {
 const bayarRows = bayar > 0 ? `
     <tr><td colspan="2"><hr class="hrd"></td></tr>
     <tr>
-        <td class="f10">METODE</td>
-        <td class="tr f10">${metode.toUpperCase()}</td>
+        <td class="f9">METODE</td>
+        <td class="tr f9">${metode.toUpperCase()}</td>
     </tr>
     <tr>
-        <td class="f10">BAYAR</td>
-        <td class="tr f10">Rp ${_rp(bayar)}</td>
+        <td class="f9">BAYAR</td>
+        <td class="tr f9">Rp ${_rp(bayar)}</td>
     </tr>
     <tr>
-        <td class="b f11">KEMBALI</td>
-        <td class="tr b f11">Rp ${_rp(kembalian)}</td>
+        <td class="b f10">KEMBALI</td>
+        <td class="tr b f10">Rp ${_rp(kembalian)}</td>
     </tr>` : `
     <tr>
-        <td colspan="2" class="tc" style="padding:5px 0 2px">
-            <div style="border:1.5px solid #000;display:inline-block;padding:2px 8px;font-size:9px;font-weight:750;letter-spacing:1px">
+        <td colspan="2" class="tc" style="padding:3px 0 1px">
+            <div style="border:1.5px solid #000;display:inline-block;padding:1px 6px;font-size:8px;font-weight:750;letter-spacing:1px">
                 -- DRAFT BILL --
             </div>
         </td>
@@ -5799,41 +5799,19 @@ const bayarRows = bayar > 0 ? `
         <!-- HEADER -->
         <div class="tc">
             <img src="${cabang.logo}" class="sk-logo" onerror="this.style.display='none'">
-            <div class="bb f12 uc" style="margin-top:4px;letter-spacing:.5px">${cabang.nama}</div>
-            <div class="f9" style="margin-top:2px;font-weight:700">${cabang.alamat}</div>
-            ${cabang.telp ? `<div class="f9" style="font-weight:700">Telp: ${cabang.telp}</div>` : ''}
+            <div class="bb f11 uc" style="letter-spacing:.5px">${cabang.nama}</div>
+            <div class="f8" style="font-weight:700">${cabang.alamat}${cabang.telp ? ' | '+cabang.telp : ''}</div>
         </div>
 
         <hr class="hrs">
 
         <!-- INFO TRANSAKSI -->
-        <table>
-            <tr>
-                <td class="cl f10">NO.TRX</td>
-                <td class="cs f10">:</td>
-                <td class="cv f9" style="word-break:break-all">${nomorTrx}</td>
-            </tr>
-            <tr>
-                <td class="cl f10">TGL</td>
-                <td class="cs f10">:</td>
-                <td class="cv f10">${_tgl()}</td>
-            </tr>
-            <tr>
-                <td class="cl f10">MEJA</td>
-                <td class="cs f10">:</td>
-                <td class="cv f12 bb">${nomorMeja}</td>
-            </tr>
-            <tr>
-                <td class="cl f10">CUST</td>
-                <td class="cs f10">:</td>
-                <td class="cv f10">${custName}</td>
-            </tr>
-            <tr>
-                <td class="cl f10">KASIR</td>
-                <td class="cs f10">:</td>
-                <td class="cv f10 b">${kasirNama}</td>
-            </tr>
-        </table>
+        <div class="f9" style="line-height:1.25">
+            <div><span class="b">TRX:</span> <span style="word-break:break-all">${nomorTrx}</span></div>
+            <div><span class="b">TGL:</span> ${_tgl()}</div>
+            <div style="display:flex;justify-content:space-between"><span><span class="b">MEJA:</span> <span class="bb">${nomorMeja}</span></span><span><span class="b">CUST:</span> ${custName}</span></div>
+            <div><span class="b">KASIR:</span> ${kasirNama}</div>
+        </div>
 
         <hr class="hrd">
 
@@ -5856,8 +5834,8 @@ const bayarRows = bayar > 0 ? `
                 <td colspan="2"><hr class="hrs"></td>
             </tr>
             <tr>
-                <td class="bb f14">TOTAL</td>
-                <td class="tr bb f14">Rp ${_rp(totalFinal)}</td>
+                <td class="bb f13">TOTAL</td>
+                <td class="tr bb f13">Rp ${_rp(totalFinal)}</td>
             </tr>
             ${bayarRows}
         </table>
@@ -5865,10 +5843,8 @@ const bayarRows = bayar > 0 ? `
         <hr class="hrd">
 
         <!-- FOOTER -->
-        <div class="tc" style="line-height:1.6">
-            <div class="bb f10">${cabang.footer}</div>
-            <div class="f9 b">Manage by @barsolutions</div>
-        </div>
+        <div class="tc f9 b">${cabang.footer}</div>
+        <div class="tc f8">Manage by @barsolutions</div>
 
     </div>`;
 
@@ -5883,14 +5859,14 @@ function printStrukSplit(paidItems, totalBayar, metode, sisaTagihan) {
     const kasirNama = localStorage.getItem('user_nama') || KASIR || 'Kasir';
 
     const itemRows = paidItems.map(i => {
-        const nm = i.nama.length > 24 ? i.nama.substring(0,23)+'...' : i.nama;
+        const nm = i.nama.length > 20 ? i.nama.substring(0,19)+'…' : i.nama;
         return `
         <tr>
-            <td colspan="2" class="bb f11 uc" style="padding-top:5px;letter-spacing:.2px">${nm}</td>
+            <td class="b f10 uc" style="padding-top:3px">${nm}</td>
+            <td class="tr bb f10" style="padding-top:3px">Rp ${_rp(i.qty * i.harga)}</td>
         </tr>
         <tr>
-            <td class="f10 b" style="padding-left:2px">${i.qty} x Rp ${_rp(i.harga)}</td>
-            <td class="tr f10 bb">Rp ${_rp(i.qty * i.harga)}</td>
+            <td colspan="2" class="f9" style="padding-left:2px;padding-bottom:1px">${i.qty} x Rp ${_rp(i.harga)}</td>
         </tr>`;
     }).join('');
 
@@ -5899,35 +5875,18 @@ function printStrukSplit(paidItems, totalBayar, metode, sisaTagihan) {
         <!-- HEADER -->
         <div class="tc">
             <img src="${cabang.logo}" class="sk-logo" onerror="this.style.display='none'">
-            <div class="bb f12 uc" style="margin-top:4px;letter-spacing:.5px">${cabang.nama}</div>
-            <div style="margin-top:5px"><span class="badge">PARTIAL PAYMENT</span></div>
+            <div class="bb f11 uc" style="letter-spacing:.5px">${cabang.nama}</div>
+            <div style="margin-top:2px"><span class="badge">PARTIAL PAYMENT</span></div>
         </div>
 
         <hr class="hrs">
 
         <!-- INFO -->
-        <table>
-            <tr>
-                <td class="cl f10">MEJA</td>
-                <td class="cs f10">:</td>
-                <td class="cv f12 bb">${labelMeja}</td>
-            </tr>
-            <tr>
-                <td class="cl f10">CUST</td>
-                <td class="cs f10">:</td>
-                <td class="cv f10 b">${custName}</td>
-            </tr>
-            <tr>
-                <td class="cl f10">TGL</td>
-                <td class="cs f10">:</td>
-                <td class="cv f10 b">${_tgl()}</td>
-            </tr>
-            <tr>
-                <td class="cl f10">KASIR</td>
-                <td class="cs f10">:</td>
-                <td class="cv f10 b">${kasirNama}</td>
-            </tr>
-        </table>
+        <div class="f9" style="line-height:1.25">
+            <div style="display:flex;justify-content:space-between"><span><span class="b">MEJA:</span> <span class="bb">${labelMeja}</span></span><span><span class="b">CUST:</span> ${custName}</span></div>
+            <div><span class="b">TGL:</span> ${_tgl()}</div>
+            <div><span class="b">KASIR:</span> ${kasirNama}</div>
+        </div>
 
         <hr class="hrd">
 
@@ -5939,8 +5898,8 @@ function printStrukSplit(paidItems, totalBayar, metode, sisaTagihan) {
         <!-- NOMINAL BAYAR -->
         <table>
             <tr>
-                <td class="f10 b">DIBAYAR (${metode.toUpperCase()})</td>
-                <td class="tr bb f14">Rp ${_rp(totalBayar)}</td>
+                <td class="f9 b">DIBAYAR (${metode.toUpperCase()})</td>
+                <td class="tr bb f13">Rp ${_rp(totalBayar)}</td>
             </tr>
         </table>
 
@@ -5952,10 +5911,8 @@ function printStrukSplit(paidItems, totalBayar, metode, sisaTagihan) {
         <hr class="hrd">
 
         <!-- FOOTER -->
-        <div class="tc" style="line-height:1.6">
-            <div class="bb f10">${cabang.footer}</div>
-            <div class="f9 b">Manage by @barsolutions</div>
-        </div>
+        <div class="tc f9 b">${cabang.footer}</div>
+        <div class="tc f8">Manage by @barsolutions</div>
 
     </div>`;
 
@@ -7168,109 +7125,85 @@ function printStrukClosing(data) {
         <!-- HEADER -->
         <div class="tc">
             <img src="${cabang.logo}" class="sk-logo" onerror="this.style.display='none'">
-            <div class="b f12 uc" style="margin-top:3px;letter-spacing:.4px">${cabang.nama}</div>
-            <div class="f9" style="margin-top:1px">${cabang.alamat}</div>
-            ${cabang.telp ? `<div class="f9">Telp: ${cabang.telp}</div>` : ''}
+            <div class="b f11 uc" style="letter-spacing:.4px">${cabang.nama}</div>
+            <div class="f8">${cabang.alamat}${cabang.telp ? ' | '+cabang.telp : ''}</div>
         </div>
 
         <hr class="hrs">
 
         <!-- JUDUL -->
-        <div class="tc" style="margin:4px 0">
-            <div class="bb f12 uc" style="letter-spacing:1.5px">LAPORAN CLOSING SHIFT</div>
-        </div>
+        <div class="tc bb f11 uc" style="letter-spacing:1px;margin:2px 0">LAPORAN CLOSING SHIFT</div>
 
         <hr class="hrs">
 
         <!-- INFO SHIFT -->
-        <table>
-            <tr>
-                <td class="cl f10 b">SHIFT</td>
-                <td class="cs f10">:</td>
-                <td class="cv f10 b">${data.shiftNama || '-'}</td>
-            </tr>
-            <tr>
-                <td class="cl f10 b">KASIR</td>
-                <td class="cs f10">:</td>
-                <td class="cv f10">${data.kasir || '-'}</td>
-            </tr>
-            <tr>
-                <td class="cl f10 b">CABANG</td>
-                <td class="cs f10">:</td>
-                <td class="cv f10">${data.cabang || '-'}</td>
-            </tr>
-            <tr>
-                <td class="cl f10 b">BUKA</td>
-                <td class="cs f10">:</td>
-                <td class="cv f9">${data.shiftStart || '-'}</td>
-            </tr>
-            <tr>
-                <td class="cl f10 b">TUTUP</td>
-                <td class="cs f10">:</td>
-                <td class="cv f9">${data.waktuClosing}</td>
-            </tr>
-        </table>
+        <div class="f9" style="line-height:1.25">
+            <div style="display:flex;justify-content:space-between"><span><span class="b">SHIFT:</span> ${data.shiftNama||'-'}</span><span><span class="b">KASIR:</span> ${data.kasir||'-'}</span></div>
+            <div><span class="b">CABANG:</span> ${data.cabang||'-'}</div>
+            <div><span class="b">BUKA:</span> ${data.shiftStart||'-'}</div>
+            <div><span class="b">TUTUP:</span> ${data.waktuClosing}</div>
+        </div>
 
         <hr class="hrd">
 
         <!-- RINGKASAN PENJUALAN -->
-        <div class="b f10 uc" style="margin-bottom:3px">Ringkasan Penjualan</div>
+        <div class="b f9 uc" style="margin-bottom:1px">Ringkasan Penjualan</div>
         <table>
             <tr>
-                <td class="f10">Jml Transaksi</td>
-                <td class="tr f10 b">${data.totalTransaksi || 0} kali</td>
+                <td class="f9">Jml Transaksi</td>
+                <td class="tr f9 b">${data.totalTransaksi || 0} kali</td>
             </tr>
             <tr>
-                <td class="f10">Total Diskon</td>
-                <td class="tr f10">- Rp ${_rp(data.totalDiskon)}</td>
+                <td class="f9">Total Diskon</td>
+                <td class="tr f9">- Rp ${_rp(data.totalDiskon)}</td>
             </tr>
         </table>
 
         <hr class="hrd">
 
         <!-- RINCIAN OMZET / SALES TODAY -->
-        <div class="b f10 uc" style="margin-bottom:3px">Rincian Omzet (Sales Today)</div>
+        <div class="b f9 uc" style="margin-bottom:1px">Rincian Omzet</div>
         <table>
             <tr>
-                <td class="f10">+ Penjualan Tunai</td>
-                <td class="tr f10">Rp ${_rp(data.kasTunai)}</td>
+                <td class="f9">+ Tunai</td>
+                <td class="tr f9">Rp ${_rp(data.kasTunai)}</td>
             </tr>
             <tr>
-                <td class="f10">+ Penjualan QRIS</td>
-                <td class="tr f10">Rp ${_rp(data.kasQris)}</td>
+                <td class="f9">+ QRIS</td>
+                <td class="tr f9">Rp ${_rp(data.kasQris)}</td>
             </tr>
             <tr><td colspan="2"><hr class="hrd"></td></tr>
             <tr>
-                <td class="f10 b">TOTAL OMZET</td>
-                <td class="tr f10 b">Rp ${_rp(data.salesToday || (parseFloat(data.kasTunai||0) + parseFloat(data.kasQris||0)))}</td>
+                <td class="f9 b">TOTAL OMZET</td>
+                <td class="tr f9 b">Rp ${_rp(data.salesToday || (parseFloat(data.kasTunai||0) + parseFloat(data.kasQris||0)))}</td>
             </tr>
         </table>
 
         <hr class="hrd">
 
         <!-- RINCIAN KAS LACI -->
-        <div class="b f10 uc" style="margin-bottom:3px">Rincian Kas Laci</div>
+        <div class="b f9 uc" style="margin-bottom:1px">Rincian Kas Laci</div>
         <table>
             <tr>
-                <td class="f10">Modal Awal</td>
-                <td class="tr f10">Rp ${_rp(data.modalAwal)}</td>
+                <td class="f9">Modal Awal</td>
+                <td class="tr f9">Rp ${_rp(data.modalAwal)}</td>
             </tr>
             <tr>
-                <td class="f10">(+) Penjualan Tunai</td>
-                <td class="tr f10">Rp ${_rp(data.kasTunai)}</td>
+                <td class="f9">(+) Penjualan Tunai</td>
+                <td class="tr f9">Rp ${_rp(data.kasTunai)}</td>
             </tr>
             <tr>
-                <td class="f10">(+) Kas Masuk Lain</td>
-                <td class="tr f10">Rp ${_rp(data.kasMasuk)}</td>
+                <td class="f9">(+) Kas Masuk Lain</td>
+                <td class="tr f9">Rp ${_rp(data.kasMasuk)}</td>
             </tr>
             <tr>
-                <td class="f10">(-) Kas Keluar</td>
-                <td class="tr f10">Rp ${_rp(data.kasKeluar)}</td>
+                <td class="f9">(-) Kas Keluar</td>
+                <td class="tr f9">Rp ${_rp(data.kasKeluar)}</td>
             </tr>
             <tr><td colspan="2"><hr class="hrd"></td></tr>
             <tr>
-                <td class="f10 b">(=) SALDO FISIK LACI</td>
-                <td class="tr f10 b">Rp ${_rp(data.saldoAkhir)}</td>
+                <td class="f9 b">(=) SALDO FISIK LACI</td>
+                <td class="tr f9 b">Rp ${_rp(data.saldoAkhir)}</td>
             </tr>
         </table>
 
@@ -7280,19 +7213,16 @@ function printStrukClosing(data) {
         <table>
             <tr>
                 <td class="bb f11">SALDO FISIK LACI</td>
-                <td class="tr bb f13">Rp ${_rp(data.saldoAkhir)}</td>
+                <td class="tr bb f12">Rp ${_rp(data.saldoAkhir)}</td>
             </tr>
         </table>
 
         <hr class="hrs">
 
         <!-- FOOTER -->
-        <div class="tc" style="line-height:1.6;margin-top:4px">
-            <div class="b f10">Struk ini adalah bukti resmi</div>
-            <div class="f9">penutupan shift kasir.</div>
-            <div class="f9" style="margin-top:3px">${cabang.footer}</div>
-            <div class="f9">Manage by @barsolutions</div>
-        </div>
+        <div class="tc f9 b">Bukti resmi penutupan shift kasir.</div>
+        <div class="tc f9">${cabang.footer}</div>
+        <div class="tc f8">Manage by @barsolutions</div>
 
     </div>`;
 
