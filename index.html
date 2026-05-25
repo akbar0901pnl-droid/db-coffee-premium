@@ -362,10 +362,32 @@
                     cancelButtonColor: '#64748b'
                 }).then(r => {
                     if (r.isConfirmed) {
-                        try {
-                            if (window.median && median.app) median.app.exit();
-                            else if (window.gonative && gonative.app) gonative.app.exit();
-                        } catch(e) {}
+                        // Coba semua metode exit yang dikenal Median.co / GoNative
+                        // secara berurutan — mana yang pertama berhasil itu yang dipakai
+                        setTimeout(function() {
+                            try {
+                                // Median.co v3+ (paling baru)
+                                if (window.median && median.app && typeof median.app.exit === 'function') {
+                                    median.app.exit(); return;
+                                }
+                                // GoNative / Median lama
+                                if (window.gonative && gonative.app && typeof gonative.app.exit === 'function') {
+                                    gonative.app.exit(); return;
+                                }
+                                // Median device close
+                                if (window.median && median.device && typeof median.device.close === 'function') {
+                                    median.device.close(); return;
+                                }
+                                // GoNative webview finish
+                                if (window.gonative && gonative.webview && typeof gonative.webview.dismiss === 'function') {
+                                    gonative.webview.dismiss(); return;
+                                }
+                                // Last resort: tutup tab/window
+                                window.close();
+                            } catch(e) {
+                                window.close();
+                            }
+                        }, 100);
                     }
                 });
             }
