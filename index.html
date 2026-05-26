@@ -3037,9 +3037,12 @@ function updateDashboard() {
         if (waktuAbsen) {
             const wa = new Date(waktuAbsen);
 
-            const tunaiShift = filteredHistoryFinal.filter(h => {
-                const ts = h.Timestamp || h.timestamp || h.Waktu || h.waktu;
-                return ts && new Date(ts) >= wa && (h.Metode_Bayar || h.metode_bayar) === "Tunai";
+            // [FIX] Pakai paidHistory (sudah trim+valid) filter ulang per waktu shift
+            // Hindari bug case/whitespace pada Metode_Bayar dari raw filteredHistoryFinal
+            const tunaiShift = paidHistory.filter(h => {
+                const ts     = h.Timestamp || h.timestamp || h.Waktu || h.waktu;
+                const metode = (h.Metode_Bayar || h.metode_bayar || '').toString().trim().toLowerCase();
+                return ts && new Date(ts) >= wa && metode === 'tunai';
             }).reduce((s,i) => s + Number(i.Total_Harga || i.total_harga || 0), 0);
 
             const kasMasukShift = (DATA.modal || []).filter(m => {
@@ -7062,14 +7065,13 @@ async function showClosingModal() {
         // ── Variabel dasar ──
         const wa   = new Date(waktuAbsen);
         const role = (localStorage.getItem('user_role') || 'Kasir').toLowerCase();
-
-        // [BUG FIX] Hitung penjualan tunai & QRIS langsung dari DATA.history (lokal)
-        // agar tidak bergantung pada field d.cash/d.tunai dari server yang bisa kosong/0
         const METODE_VALID = ['tunai', 'qris', 'transfer'];
+
+        // [FIX] Hitung penjualan tunai & QRIS langsung dari DATA.history (lokal)
+        // agar tidak bergantung pada d.cash/d.tunai dari server yang bisa kosong/0
         const historyShift = (DATA.history || []).filter(h => {
             const ts        = h.Timestamp || h.timestamp || h.Waktu || h.waktu;
-            const metodeRaw = (h.Metode_Bayar || h.metode_bayar || '').toString().trim();
-            const metode    = metodeRaw.toLowerCase();
+            const metode    = (h.Metode_Bayar || h.metode_bayar || '').toString().trim().toLowerCase();
             const total     = Number(h.Total_Harga || h.total_harga || 0);
             const cab       = (h.Cabang || h.cabang || '').toString();
             const kasirTrx  = (h.Kasir || h.kasir || '').toString().trim();
@@ -7081,6 +7083,8 @@ async function showClosingModal() {
             return new Date(ts) >= wa;
         });
 
+        const totalTransaksiTerbayar = historyShift.length;
+
         // Penjualan Tunai dari DATA.history shift ini
         const penjualanTunaiLokal = historyShift
             .filter(h => (h.Metode_Bayar || h.metode_bayar || '').toString().trim().toLowerCase() === 'tunai')
@@ -7091,18 +7095,17 @@ async function showClosingModal() {
             .filter(h => ['qris', 'transfer'].includes((h.Metode_Bayar || h.metode_bayar || '').toString().trim().toLowerCase()))
             .reduce((s, h) => s + Number(h.Total_Harga || h.total_harga || 0), 0);
 
-        // Gunakan nilai lokal; fallback ke server hanya jika lokal = 0 dan server punya data
+        // Gunakan nilai lokal; fallback ke server jika lokal = 0 dan server punya data
         const serverTunai = parseFloat(d.cash || d.tunai || 0);
         const serverQris  = parseFloat(d.qris || d.totalQris || 0);
         const penjualanTunai = penjualanTunaiLokal > 0 ? penjualanTunaiLokal : serverTunai;
         const penjualanQris  = penjualanQrisLokal  > 0 ? penjualanQrisLokal  : serverQris;
 
-        console.log('[Closing] penjualanTunai (lokal):', penjualanTunaiLokal, '| server:', serverTunai, '| dipakai:', penjualanTunai);
-        console.log('[Closing] penjualanQris  (lokal):', penjualanQrisLokal,  '| server:', serverQris,  '| dipakai:', penjualanQris);
+        const kasKeluar = parseFloat(d.totalKeluar || d.kas_keluar || 0);
 
-        const kasKeluar = parseFloat(d.totalKeluar || d.kas_keluar || 0); // Total Pengeluaran / Kas Keluar
-
-        const totalTransaksiTerbayar = historyShift.length;
+        console.log('[Closing] Tunai lokal:', penjualanTunaiLokal, '| server:', serverTunai, '| dipakai:', penjualanTunai);
+        console.log('[Closing] QRIS  lokal:', penjualanQrisLokal,  '| server:', serverQris,  '| dipakai:', penjualanQris);
+        console.log('[Closing] Jumlah transaksi shift:', totalTransaksiTerbayar);
 
         const kasMasukShift = (DATA.modal || []).filter(m => {
             const ts   = m.Timestamp || m.timestamp || m.Waktu || m.waktu;
@@ -7126,7 +7129,7 @@ async function showClosingModal() {
         const saldoAkhir = saldoFisikTunai - kasKeluar;
 
         console.log('[Closing] Saldo Fisik Tunai:', { modalAwal, penjualanTunai, kasMasukShift, saldoFisikTunai });
-        console.log('[Closing] Saldo Akhir Laci:', { saldoFisikTunai, kasKeluar, saldoAkhir });
+        console.log('[Closing] Saldo Akhir Laci :', { saldoFisikTunai, kasKeluar, saldoAkhir });
 
         Swal.close();
 
