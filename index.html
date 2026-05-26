@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <!-- ANDROID / MEDIAN.CO OPTIMIZED VIEWPORT -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>D&B COFFEE PREMIUM - POS SYSTEM v12.1.2</title>
+    <title>D&B COFFEE PREMIUM - POS SYSTEM v15.0</title>
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1356,7 +1356,7 @@
             <div style="z-index:3;position:relative">
                 <img src="https://lh3.googleusercontent.com/d/1qiyKZSuCfpSOjWq0ciH6wodGK9bLXDLW" alt="Logo" style="width:180px;height:auto;filter:drop-shadow(0 0 15px rgba(241,196,15,.3))" class="mb-4">
                 <h2 class="fw-bold m-0 text-uppercase" style="letter-spacing:3px;color:#f1c40f">D&B COFFEE</h2>
-                <p class="small opacity-75 mt-2">PREMIUM ROASTERY & POS SYSTEM v12.1.2</p>
+                <p class="small opacity-75 mt-2">PREMIUM ROASTERY & POS SYSTEM v15.0</p>
                 <div class="mt-4 mx-auto" style="width:40px;height:3px;background:#f1c40f"></div>
             </div>
         </div>
@@ -2354,7 +2354,7 @@
 // =============================================================
 // GLOBAL STATE
 // =============================================================
-const API_URL = "https://script.google.com/macros/s/AKfycbztqAHcYIvtdSKC0OxXKGPgaVRXBt_LubvSOPgzlRfWL3m6rx83gp14kFNLfJMaK3Sn/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxSETph1X-FWgcs9mUJaPQVEvpTfHW2AXiYSxBU1lBz762CzSVeYqKuedwSMg-taHZ9/exec";
 let DATA = { products:[], tables:[], history:[], expenses:[], modal:[], users:[], branches:[], shifts:[], absenLog:[], rekapShift:[] };
 let CART = [], AKTIF_MEJA = "", KASIR = "", TOTAL_CART = 0;
 let revChart = null, produkChart = null;
@@ -2445,8 +2445,11 @@ window.onload = () => {
         const hasAbsen = localStorage.getItem('shift_absen_done') === 'true';
         const absenDate = localStorage.getItem('shift_absen_date') || '';
         const today = new Date().toLocaleDateString('en-CA');
+        // [FIX v15] Toleransi shift malam lintas hari: izinkan absen dari kemarin
+        const _yd = new Date(); _yd.setDate(_yd.getDate() - 1);
+        const yesterdayStr = _yd.toLocaleDateString('en-CA');
 
-        if (role !== 'admin' && (!hasAbsen || absenDate !== today)) {
+        if (role !== 'admin' && (!hasAbsen || (absenDate !== today && absenDate !== yesterdayStr))) {
             showAbsenPage();
             return;
         }
@@ -2499,6 +2502,8 @@ function initMainApp() {
 
     showPage(localStorage.getItem('last_page') || 'dash');
     refreshData();
+    // ── AUTO-RESET HARIAN: aktifkan kembali semua shift di hari baru ──
+    dailyShiftReset().catch(() => {});
 }
 
 // =============================================================
@@ -4676,10 +4681,22 @@ function renderShiftMgmt() {
     });
 
     // Update Statistik
+    const todayStr2 = new Date().toLocaleDateString('en-CA');
     setEl('shift-stat-total', shifts.length);
-    setEl('shift-stat-aktif', shifts.filter(s => 
-        String(s.Status || s.status || '').toLowerCase() === 'aktif'
-    ).length);
+    // Shift aktif = shift yang statusnya Aktif DAN belum closing hari ini
+    const shiftAktifHariIni = shifts.filter(s => {
+        const st = String(s.Status || s.status || '').toLowerCase();
+        if (st !== 'aktif') return false;
+        const nama2 = (s.Nama_Shift || s.nama_shift || '').trim().toLowerCase();
+        const sudahClosingHariIni = (DATA.rekapShift || []).some(r => {
+            const rShift = String(r.Shift || r.shift || '').trim().toLowerCase();
+            const rWaktu = r.Waktu_Closing || r.waktu_closing || r.Timestamp || r.timestamp || '';
+            const rDate  = rWaktu ? new Date(rWaktu).toLocaleDateString('en-CA') : '';
+            return (rShift === nama2 || rShift.includes(nama2)) && rDate === todayStr2;
+        });
+        return !sudahClosingHariIni;
+    });
+    setEl('shift-stat-aktif', shiftAktifHariIni.length);
     setEl('shift-stat-belum', belumAbsen.length);
     setEl('shift-today-date', new Date().toLocaleDateString('id-ID', {
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
@@ -4749,14 +4766,31 @@ function renderShiftMgmt() {
         const jamMulaiClean = cleanTime(s.Jam_Mulai || s.jam_mulai);
         const jamSelesaiClean = cleanTime(s.Jam_Selesai || s.jam_selesai);
 
-        const badgeClass = status.toLowerCase() === 'aktif' ? 'aktif' : 
-                          status.toLowerCase() === 'selesai' ? 'selesai' : 'belum';
-
-        const hasRekap = (DATA.rekapShift || []).some(r => {
+        // ── STATUS DINAMIS BERDASARKAN HARI INI ──────────────────────
+        // "Sudah Closing" hanya ditampilkan jika ada rekap closing di HARI INI
+        const todayStr = new Date().toLocaleDateString('en-CA');
+        const hasRekapHariIni = (DATA.rekapShift || []).some(r => {
             const rShift = String(r.Shift || r.shift || '').trim().toLowerCase();
-            const rNama = nama.trim().toLowerCase();
-            return rShift === rNama || rShift.includes(rNama);
+            const rNama  = nama.trim().toLowerCase();
+            const rWaktu = r.Waktu_Closing || r.waktu_closing || r.Timestamp || r.timestamp || '';
+            const rDate  = rWaktu ? new Date(rWaktu).toLocaleDateString('en-CA') : '';
+            const shiftMatch = rShift === rNama || rShift.includes(rNama);
+            return shiftMatch && rDate === todayStr;
         });
+
+        // Badge: Nonaktif jika sudah closing hari ini, Aktif jika belum
+        // (override status DB agar tampilan selalu up-to-date)
+        let displayStatus, badgeClass;
+        if (hasRekapHariIni) {
+            displayStatus = 'Nonaktif';
+            badgeClass    = 'belum'; // kuning/orange
+        } else if (status.toLowerCase() === 'aktif') {
+            displayStatus = 'Aktif';
+            badgeClass    = 'aktif'; // hijau
+        } else {
+            displayStatus = status;
+            badgeClass    = 'belum';
+        }
 
         const idEsc = id.replace(/'/g, "\\'");
 
@@ -4768,7 +4802,7 @@ function renderShiftMgmt() {
                         <div class="fw-bold" style="font-size:14px">${nama}</div>
                         <div class="text-muted small">${cabang}</div>
                     </div>
-                    <span class="shift-badge ${badgeClass}">${status}</span>
+                    <span class="shift-badge ${badgeClass}">${displayStatus}</span>
                 </div>
                 
                 <div class="d-flex justify-content-between mb-2">
@@ -4783,8 +4817,8 @@ function renderShiftMgmt() {
                 
                 <div class="d-flex justify-content-between mb-3">
                     <span class="text-muted small"><i class="bi bi-journal-check me-1"></i>Riwayat</span>
-                    <span class="fw-bold ${hasRekap ? 'text-success' : 'text-warning'}">
-                        ${hasRekap ? '✅ Sudah Closing' : 'Belum ada rekap'}
+                    <span class="fw-bold ${hasRekapHariIni ? 'text-success' : 'text-warning'}">
+                        ${hasRekapHariIni ? '✅ Sudah Closing' : '🕐 Belum Closing Hari Ini'}
                     </span>
                 </div>
                 
@@ -5093,10 +5127,31 @@ async function simpanShift() {
             bootstrap.Modal.getInstance(document.getElementById('modalShiftForm')).hide();
             await refreshData();
             renderShiftMgmt();
+
+            // ── AUTO-JADWALKAN REAKTIVASI: shift baru/diedit aktif esok hari ──
+            // Cari ID shift yang baru saja disimpan (dari DATA.shifts yang sudah direfresh)
+            try {
+                const savedShift = (DATA.shifts || []).find(s => {
+                    const n = (s.Nama_Shift || s.nama_shift || '').trim().toLowerCase();
+                    return n === nama.toLowerCase();
+                });
+                if (savedShift) {
+                    const shiftId   = savedShift.ID_Shift || savedShift.id_shift || idLama || '';
+                    const shiftNama = savedShift.Nama_Shift || savedShift.nama_shift || nama;
+                    const jamM      = cleanTime(savedShift.Jam_Mulai || savedShift.jam_mulai || jamMulai);
+                    if (shiftId) {
+                        scheduleShiftReactivation({ id: shiftId, nama: shiftNama, jamMulai: jamM });
+                    }
+                }
+            } catch(eSchedule) {
+                console.warn('[simpanShift] Gagal jadwalkan reaktivasi:', eSchedule);
+            }
+
             Swal.fire({
                 title: idLama ? 'Shift Diperbarui!' : 'Shift Ditambahkan!',
+                html: '<small class="text-muted">Shift akan aktif otomatis setiap hari baru</small>',
                 icon: 'success',
-                timer: 1800
+                timer: 2200
             });
         } else {
             Swal.fire('Gagal', res.message || 'Terjadi kesalahan', 'error');
@@ -6321,8 +6376,16 @@ async function downloadFullReport() {
 function loading(s) { const l=document.getElementById('loader'); if(l){l.style.display=s?'flex':'none';} }
 
 // =============================================================
-// SHIFT AUTO-REAKTIVASI — Jadwalkan aktifkan shift esok hari
-// sesuai jam_mulai yang ditentukan admin
+// =============================================================
+// SHIFT AUTO-RESET HARIAN v2.0
+// =============================================================
+// LOGIKA UTAMA:
+//   1. Setiap shift yang sudah di-closing hari ini → status "Nonaktif"
+//      (ditangani oleh closingShift → updateShift + scheduleShiftReactivation)
+//   2. Keesokan harinya → semua shift di-reset ke "Aktif" otomatis
+//   3. dailyShiftReset() dipanggil saat login + setiap tengah malam
+//   4. Tampilan "Sudah Closing" di kartu shift bersumber dari rekapShift HARI INI
+//      (bukan dari field status permanen di database)
 // =============================================================
 
 /**
@@ -6346,22 +6409,138 @@ function scheduleShiftReactivation(shiftInfo) {
         const key = 'shift_reactivate_' + shiftInfo.id;
         localStorage.setItem(key, JSON.stringify(schedule));
 
-        console.log('[ShiftScheduler] Dijadwalkan reaktivasi:', schedule);
+        console.log('[ShiftScheduler] Dijadwalkan reaktivasi:', shiftInfo.nama, '→', targetDate, 'jam', shiftInfo.jamMulai);
     } catch(e) {
         console.warn('[ShiftScheduler] Gagal jadwalkan:', e);
     }
 }
 
 /**
- * Cek setiap menit apakah ada shift yang perlu diaktifkan kembali.
- * Dipanggil saat app init dan berjalan terus via setInterval.
+ * Daftarkan SEMUA shift yang ada ke jadwal reaktivasi esok hari.
+ * Dipanggil otomatis setelah admin simpan shift baru.
+ */
+function scheduleAllShiftsReactivation() {
+    try {
+        const shifts = DATA.shifts || [];
+        shifts.forEach(s => {
+            const id      = s.ID_Shift  || s.id_shift  || '';
+            const nama    = s.Nama_Shift || s.nama_shift || '';
+            const jamMulai = cleanTime(s.Jam_Mulai || s.jam_mulai || '00:00');
+            if (id) scheduleShiftReactivation({ id, nama, jamMulai });
+        });
+        console.log('[ShiftScheduler] Semua shift (' + shifts.length + ') dijadwalkan reaktivasi esok.');
+    } catch(e) {
+        console.warn('[ShiftScheduler] scheduleAllShiftsReactivation error:', e);
+    }
+}
+
+/**
+ * DAILY RESET ENGINE — dipanggil saat:
+ *   a) Login berhasil (initMainApp)
+ *   b) Tengah malam (setInterval deteksi pergantian hari)
+ *
+ * Mekanisme:
+ *   - Bandingkan 'shift_last_reset_date' di localStorage dengan hari ini
+ *   - Jika berbeda (hari baru) → panggil API resetAllShifts → semua shift jadi Aktif
+ *   - Simpan tanggal reset hari ini agar tidak berulang
+ */
+async function dailyShiftReset() {
+    try {
+        const today   = new Date().toLocaleDateString('en-CA');
+        const lastReset = localStorage.getItem('shift_last_reset_date') || '';
+
+        if (lastReset === today) {
+            // Sudah direset hari ini, tidak perlu lagi
+            return;
+        }
+
+        console.log('[ShiftReset] Hari baru terdeteksi (' + today + '). Cek sesi aktif...');
+
+        // [FIX v15] Skip reset jika masih ada kasir dalam sesi aktif (shift malam lintas hari)
+        const absenLog = (typeof DATA !== 'undefined' && DATA && DATA.absenLog) ? DATA.absenLog : [];
+        const hasActiveSesi = absenLog.some(a => {
+            const st = (a.Status || a.status || '').toString().toLowerCase().trim();
+            return st !== 'selesai' && st !== '';
+        });
+        if (hasActiveSesi) {
+            console.log('[ShiftReset] ⏸ Skip reset — masih ada kasir dalam sesi aktif (shift malam).');
+            // Tandai sudah "cek" hari ini agar tidak loop, tapi TIDAK reset shift
+            localStorage.setItem('shift_last_reset_date', today);
+            return;
+        }
+
+        console.log('[ShiftReset] Tidak ada sesi aktif. Reset semua shift ke Aktif...');
+
+        // Panggil API resetAllShifts (batch update semua shift → Aktif)
+        const res = await fetch(API_URL, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'resetAllShifts', status: 'Aktif' })
+        }).then(r => r.json()).catch(() => null);
+
+        if (res && res.status === 'success') {
+            localStorage.setItem('shift_last_reset_date', today);
+            console.log('[ShiftReset] ✅ Semua shift berhasil di-reset ke Aktif untuk', today);
+
+            // Bersihkan jadwal reaktivasi lama (sudah tidak perlu)
+            Object.keys(localStorage)
+                .filter(k => k.startsWith('shift_reactivate_'))
+                .forEach(k => localStorage.removeItem(k));
+
+            // Refresh tampilan
+            if (typeof refreshData === 'function') {
+                await refreshData();
+                if (typeof renderShiftMgmt === 'function') renderShiftMgmt();
+            }
+        } else {
+            // Fallback: reset satu per satu via updateShift
+            console.warn('[ShiftReset] resetAllShifts tidak tersedia, fallback per-shift...');
+            const shifts = DATA.shifts || [];
+            let anySuccess = false;
+            for (const s of shifts) {
+                const id = s.ID_Shift || s.id_shift || '';
+                if (!id) continue;
+                const r2 = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'updateShift', id_lama: id, status: 'Aktif' })
+                }).then(r => r.json()).catch(() => null);
+                if (r2 && r2.status === 'success') anySuccess = true;
+            }
+            if (anySuccess || shifts.length === 0) {
+                localStorage.setItem('shift_last_reset_date', today);
+                Object.keys(localStorage)
+                    .filter(k => k.startsWith('shift_reactivate_'))
+                    .forEach(k => localStorage.removeItem(k));
+                if (typeof refreshData === 'function') {
+                    await refreshData();
+                    if (typeof renderShiftMgmt === 'function') renderShiftMgmt();
+                }
+                console.log('[ShiftReset] ✅ Fallback reset selesai.');
+            }
+        }
+    } catch(e) {
+        console.warn('[ShiftReset] Error dailyShiftReset:', e);
+    }
+}
+
+/**
+ * Cek setiap menit apakah ada shift yang perlu diaktifkan kembali
+ * berdasarkan jadwal tersimpan di localStorage.
  */
 async function checkAndReactivateShifts() {
     try {
         const today = new Date().toLocaleDateString('en-CA');
-        const nowH = new Date().getHours() * 60 + new Date().getMinutes();
+        const nowH  = new Date().getHours() * 60 + new Date().getMinutes();
 
-        // Kumpulkan semua kunci jadwal dari localStorage
+        // ── Deteksi pergantian hari ──────────────────────────────────
+        const lastKnownDay = localStorage.getItem('_scheduler_last_day') || today;
+        if (lastKnownDay !== today) {
+            localStorage.setItem('_scheduler_last_day', today);
+            // Hari baru! Jalankan daily reset (non-blocking)
+            dailyShiftReset().catch(() => {});
+            return; // tunggu reset selesai, interval berikutnya akan lanjut
+        }
+
+        // ── Proses jadwal reaktivasi individual ──────────────────────
         const scheduleKeys = Object.keys(localStorage).filter(k => k.startsWith('shift_reactivate_'));
 
         for (const key of scheduleKeys) {
@@ -6369,56 +6548,54 @@ async function checkAndReactivateShifts() {
             try { schedule = JSON.parse(localStorage.getItem(key)); } catch(e) { continue; }
             if (!schedule || !schedule.id) { localStorage.removeItem(key); continue; }
 
-            // Hanya proses jika sudah hari target
             if (schedule.targetDate !== today) continue;
 
-            // Cek apakah sudah lewat jam mulai shift
             const parseM = (t) => {
                 const m = String(t || '00:00').match(/(\d{1,2})[:.](\d{2})/);
                 return m ? parseInt(m[1]) * 60 + parseInt(m[2]) : 0;
             };
-            const jamMulaiM = parseM(schedule.jamMulai);
 
-            // Aktifkan jika waktu sekarang >= jam mulai (dengan toleransi 0 menit)
-            if (nowH >= jamMulaiM) {
+            if (nowH >= parseM(schedule.jamMulai)) {
                 console.log('[ShiftScheduler] Mengaktifkan kembali shift:', schedule.nama, 'jam', schedule.jamMulai);
 
-                // Panggil API untuk aktifkan shift
                 const res = await fetch(API_URL, {
                     method: 'POST',
-                    body: JSON.stringify({
-                        action:  'updateShift',
-                        id_lama: schedule.id,
-                        status:  'Aktif'
-                    })
+                    body: JSON.stringify({ action: 'updateShift', id_lama: schedule.id, status: 'Aktif' })
                 }).then(r => r.json()).catch(() => null);
 
-                // Hapus jadwal setelah berhasil (atau gagal — coba lagi interval berikut jika gagal)
                 if (res && res.status === 'success') {
                     localStorage.removeItem(key);
                     console.log('[ShiftScheduler] ✅ Shift', schedule.nama, 'berhasil diaktifkan kembali');
-
-                    // Refresh DATA agar tampilan langsung update (hanya jika sudah login)
                     const isLoggedIn = !!localStorage.getItem('user_nama');
-                    if (isLoggedIn && typeof refreshData === 'function') {
-                        refreshData();
-                    }
+                    if (isLoggedIn && typeof refreshData === 'function') refreshData();
                 } else {
-                    console.warn('[ShiftScheduler] Gagal aktifkan shift, akan dicoba lagi:', schedule);
+                    console.warn('[ShiftScheduler] Gagal aktifkan shift, coba lagi:', schedule);
                 }
             }
         }
     } catch(e) {
-        console.warn('[ShiftScheduler] Error saat cek reaktivasi:', e);
+        console.warn('[ShiftScheduler] Error checkAndReactivateShifts:', e);
     }
 }
 
 /**
- * Inisialisasi scheduler: jalankan sekali saat load, lalu setiap 60 detik.
+ * Inisialisasi scheduler:
+ *  - Simpan hari ini sebagai referensi
+ *  - Jalankan daily reset jika hari baru
+ *  - Cek jadwal reaktivasi setiap 1 menit
  */
 function initShiftScheduler() {
-    checkAndReactivateShifts(); // cek langsung
-    setInterval(checkAndReactivateShifts, 60 * 1000); // setiap 1 menit
+    const today = new Date().toLocaleDateString('en-CA');
+    // Simpan referensi hari untuk deteksi pergantian hari
+    if (!localStorage.getItem('_scheduler_last_day')) {
+        localStorage.setItem('_scheduler_last_day', today);
+    }
+    // Jalankan daily reset saat startup (jika hari baru)
+    dailyShiftReset().catch(() => {});
+    // Cek reaktivasi manual (dari closing hari sebelumnya)
+    checkAndReactivateShifts();
+    // Polling setiap 60 detik
+    setInterval(checkAndReactivateShifts, 60 * 1000);
 }
 
 function updateTimeBadge() { const el=document.getElementById('badge-time'); if(el)el.innerText=new Date().toLocaleTimeString(); }
