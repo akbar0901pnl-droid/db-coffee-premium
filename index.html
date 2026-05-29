@@ -582,10 +582,297 @@
         .meja-card-tujuan{height:80px;border-radius:12px;border:2px solid var(--success);background:white;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-weight:bold;color:var(--success);transition:.3s;font-size:13px}
         .meja-card-tujuan:hover{background:#dcfce7;border-color:#16a34a;transform:scale(1.05)}
         
-        /* PRODUK */
-        .prod-card{border:1px solid #e2e8f0;padding:15px;border-radius:12px;cursor:pointer;background:white;text-align:center;transition:.2s}
-        .prod-card:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 4px 12px rgba(0,0,0,0.05)}
-        .prod-card.stok-habis{opacity:.5;cursor:not-allowed;border-color:#ef4444;background:#fef2f2}
+        /* ============================================================
+           PRODUK CARD — PREMIUM v3 (D&B Coffee × Moka POS Style)
+           ============================================================ */
+        .prod-card{
+            position:relative;
+            overflow:hidden;
+            border:1.5px solid #eef2f7;
+            padding:0;
+            border-radius:20px;
+            cursor:pointer;
+            background:#fff;
+            text-align:left;
+            transition: transform .2s cubic-bezier(.34,1.5,.64,1),
+                        box-shadow .2s ease,
+                        border-color .15s ease;
+            box-shadow:
+                0 1px 3px rgba(15,23,42,.06),
+                0 4px 16px rgba(15,23,42,.05);
+            min-height:110px;
+            display:flex;
+            flex-direction:column;
+        }
+
+        /* Shimmer hover overlay */
+        .prod-card::before{
+            content:'';
+            position:absolute;inset:0;
+            border-radius:20px;
+            background:linear-gradient(135deg,
+                rgba(197,160,89,.06) 0%,
+                rgba(15,23,42,.03) 100%);
+            opacity:0;
+            transition:opacity .2s ease;
+            pointer-events:none;
+        }
+
+        /* Top accent bar (colour keyed per category — set via inline var) */
+        .prod-card::after{
+            content:'';
+            position:absolute;
+            top:0;left:0;right:0;
+            height:3px;
+            background:var(--pc-accent, linear-gradient(90deg,#c5a059,#f1c40f));
+            border-radius:20px 20px 0 0;
+            opacity:.85;
+        }
+
+        .prod-card:hover{
+            transform:translateY(-5px) scale(1.015);
+            box-shadow:
+                0 8px 24px rgba(15,23,42,.11),
+                0 2px 6px rgba(15,23,42,.06),
+                0 0 0 1.5px rgba(197,160,89,.25);
+            border-color:#dbc98a;
+        }
+        .prod-card:hover::before{opacity:1;}
+        .prod-card:active{transform:scale(.96);transition:transform .08s ease;}
+
+        /* Inner padding container */
+        .prod-card .pc-inner{
+            display:flex;
+            flex-direction:column;
+            flex:1;
+            padding:12px 11px 11px;
+            gap:0;
+        }
+
+        /* Top row: kat badge + stok badge */
+        .prod-card .pc-top-row{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:4px;
+            margin-bottom:6px;
+            min-height:18px;
+        }
+
+        /* Nama produk */
+        .prod-card .pc-nama{
+            font-size:12.5px;
+            font-weight:700;
+            color:#1e293b;
+            line-height:1.35;
+            display:-webkit-box;
+            -webkit-line-clamp:2;
+            -webkit-box-orient:vertical;
+            overflow:hidden;
+            flex:1;
+            letter-spacing:-.1px;
+        }
+
+        /* Bottom row: price + add icon */
+        .prod-card .pc-bottom-row{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            margin-top:8px;
+        }
+
+        /* Harga produk */
+        .prod-card .pc-harga{
+            font-size:15px;
+            font-weight:900;
+            color:#0f172a;
+            letter-spacing:-.4px;
+            line-height:1;
+        }
+
+        /* Add-to-cart icon button */
+        .pc-add-ico{
+            width:26px; height:26px;
+            border-radius:50%;
+            background:linear-gradient(135deg,#c5a059,#f1c40f);
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            color:#0f172a;
+            font-size:14px;
+            font-weight:900;
+            flex-shrink:0;
+            box-shadow:0 2px 6px rgba(197,160,89,.35);
+            transition:transform .15s ease, box-shadow .15s ease;
+        }
+        .prod-card:hover .pc-add-ico{
+            transform:scale(1.12);
+            box-shadow:0 4px 12px rgba(197,160,89,.5);
+        }
+
+        /* Badge kategori */
+        .prod-card .pc-kat{
+            display:inline-block;
+            font-size:9px;
+            font-weight:700;
+            letter-spacing:.3px;
+            text-transform:uppercase;
+            padding:2px 8px;
+            border-radius:30px;
+            background:#eff6ff;
+            color:#3b82f6;
+            border:1px solid #bfdbfe;
+            max-width:calc(100% - 50px);
+            overflow:hidden;
+            text-overflow:ellipsis;
+            white-space:nowrap;
+            flex-shrink:0;
+        }
+
+        /* Badge stok */
+        .prod-card .pc-stok{
+            font-size:8.5px;
+            font-weight:700;
+            padding:2px 7px;
+            border-radius:30px;
+            display:inline-block;
+            white-space:nowrap;
+            flex-shrink:0;
+        }
+        .pc-stok.ok{
+            background:linear-gradient(135deg,#dcfce7,#bbf7d0);
+            color:#166534;
+            border:1px solid #86efac;
+        }
+        .pc-stok.tipis{
+            background:linear-gradient(135deg,#fef3c7,#fde68a);
+            color:#92400e;
+            border:1px solid #fbbf24;
+        }
+
+        /* ── Stok habis state ── */
+        .prod-card.stok-habis{
+            cursor:not-allowed;
+            background:linear-gradient(145deg,#fafafa,#f5f5f5);
+            border-color:#fecaca !important;
+            box-shadow:none !important;
+        }
+        .prod-card.stok-habis::after{
+            /* Override accent bar → ribbon diagonal */
+            content:'STOK HABIS';
+            width:auto; height:auto;
+            position:absolute;
+            top:14px; right:-24px;
+            background:linear-gradient(135deg,#ef4444,#dc2626);
+            color:#fff;
+            font-size:7.5px;
+            font-weight:800;
+            letter-spacing:.8px;
+            padding:3px 32px;
+            transform:rotate(36deg);
+            border-radius:0;
+            box-shadow:0 2px 8px rgba(239,68,68,.45);
+            opacity:1;
+        }
+        .prod-card.stok-habis:hover{
+            transform:none;
+            box-shadow:none !important;
+        }
+        .prod-card.stok-habis .pc-harga{color:#94a3b8 !important;}
+        .prod-card.stok-habis .pc-nama{color:#94a3b8;}
+        .prod-card.stok-habis .pc-add-ico{
+            background:#e2e8f0;
+            box-shadow:none;
+            color:#94a3b8;
+        }
+
+        /* ============================================================
+           KATEGORI PILLS — Premium horizontal scroll v3
+           ============================================================ */
+        .cat-pill-wrap{
+            display:flex;
+            gap:6px;
+            overflow-x:auto;
+            padding:2px 0 8px;
+            -webkit-overflow-scrolling:touch;
+            scrollbar-width:none;
+        }
+        .cat-pill-wrap::-webkit-scrollbar{display:none;}
+        .cat-pill{
+            flex-shrink:0;
+            padding:7px 16px;
+            border-radius:100px;
+            font-size:11.5px;
+            font-weight:700;
+            cursor:pointer;
+            border:1.5px solid #e8edf4;
+            background:#fff;
+            color:#64748b;
+            transition:all .2s cubic-bezier(.34,1.5,.64,1);
+            white-space:nowrap;
+            letter-spacing:.1px;
+            user-select:none;
+            box-shadow:0 1px 3px rgba(15,23,42,.05);
+        }
+        .cat-pill:hover{
+            border-color:#c5a059;
+            color:#92400e;
+            background:#fffbeb;
+            transform:translateY(-2px);
+            box-shadow:0 4px 10px rgba(197,160,89,.2);
+        }
+        .cat-pill.active{
+            background:linear-gradient(135deg,#1e3a5f 0%,#0f172a 100%);
+            color:#f1c40f;
+            border-color:transparent;
+            box-shadow:0 4px 14px rgba(15,23,42,.3);
+            transform:translateY(-2px);
+        }
+
+        /* ── POS Section header ── */
+        .pos-menu-header{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            padding:0 2px;
+            margin-bottom:10px;
+        }
+        .pos-menu-title{
+            font-size:13px;
+            font-weight:800;
+            color:#0f172a;
+            letter-spacing:.2px;
+        }
+        .pos-menu-count{
+            font-size:11px;
+            font-weight:600;
+            color:#94a3b8;
+        }
+
+        /* ── Search bar produk — Premium ── */
+        .produk-search-wrap{position:relative;}
+        .produk-search-wrap .search-ico{
+            position:absolute;left:14px;top:50%;transform:translateY(-50%);
+            color:#c5a059;pointer-events:none;font-size:16px;
+        }
+        .produk-search-wrap input{
+            padding-left:42px !important;
+            padding-right:14px !important;
+            border-radius:16px !important;
+            border:1.5px solid #e8edf4 !important;
+            height:44px !important;
+            font-size:13px !important;
+            background:#f8fafc !important;
+            transition:border-color .2s, box-shadow .2s, background .2s;
+            box-shadow:0 1px 4px rgba(15,23,42,.05) !important;
+        }
+        .produk-search-wrap input::placeholder{color:#b0bbc8;font-weight:500;}
+        .produk-search-wrap input:focus{
+            border-color:#c5a059 !important;
+            box-shadow:0 0 0 3px rgba(197,160,89,.12) !important;
+            background:#fff !important;
+            outline:none;
+        }
         .cart-item{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px dashed #e2e8f0}
         .qty-btn{width:28px;height:28px;border-radius:8px;border:1px solid #cbd5e1;background:white;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.2s}
         .qty-btn:hover{background:var(--primary);color:white}
@@ -898,7 +1185,7 @@
         }
         #grid-produk {
             display: grid !important;
-            grid-template-columns: repeat(6, 1fr);
+            grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
             gap: 10px;
         }
         #grid-produk > * {
@@ -1073,16 +1360,17 @@
         /* Product grid height capped, scrollable */
         #grid-produk {
             display: grid !important;
-            grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-            gap: 8px;
-            max-height: 52vw !important;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 9px;
+            max-height: 55vw !important;
             overflow-y: auto;
         }
         #grid-produk > * {
             width: 100% !important; flex: unset !important;
             max-width: 100% !important; padding: 0 !important;
         }
-        .prod-card { padding: 10px 8px !important; font-size: 11px !important; }
+        .prod-card .pc-harga { font-size: 14px !important; }
+        .prod-card .pc-nama  { font-size: 12px !important; }
 
         /* Cart action buttons: 2-per-row grid */
         #view-kasir .d-grid.gap-2 .row.g-2 { --bs-gutter-x: 0.4rem; }
@@ -1214,7 +1502,8 @@
         /* Product grid: 2-col fixed on XS */
         #grid-produk {
             grid-template-columns: repeat(2, 1fr) !important;
-            max-height: 46vw !important;
+            gap: 7px !important;
+            max-height: 52vw !important;
         }
         /* Meja: 3-col on XS */
         #grid-meja {
@@ -1333,6 +1622,52 @@
     /* Modal SweetAlert: agar tidak tertutup keyboard Android */
     .swal2-popup {
         margin-bottom: env(safe-area-inset-bottom) !important;
+    }
+
+    /* =====================================================
+       PRODUK GRID — Premium CSS Grid (no Bootstrap row)
+       ===================================================== */
+    #grid-produk {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+        gap: 10px;
+        padding: 2px 1px 6px;
+        scroll-behavior: smooth;
+    }
+    #grid-produk::-webkit-scrollbar { width: 3px; }
+    #grid-produk::-webkit-scrollbar-track { background: transparent; }
+    #grid-produk::-webkit-scrollbar-thumb {
+        background: #e2e8f0; border-radius: 10px;
+    }
+
+    /* Cart panel premium */
+    #view-kasir .dash-card {
+        border: 1.5px solid #eef2f7 !important;
+        border-radius: 20px !important;
+        box-shadow: 0 4px 16px rgba(15,23,42,.07),
+                    0 1px 4px rgba(15,23,42,.04) !important;
+    }
+    #label-meja { font-size: 16px !important; letter-spacing: .3px; }
+    #view-kasir .btn-outline-secondary.rounded-pill {
+        font-size: 12px !important;
+        padding: 6px 16px !important;
+        border-color: #e2e8f0 !important;
+        color: #64748b !important;
+    }
+    #view-kasir .btn-outline-secondary.rounded-pill:hover {
+        background: #f1f5f9 !important; border-color: #cbd5e1 !important;
+    }
+
+    /* XS override for grid */
+    @media (max-width: 575.98px) {
+        #grid-produk {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 7px !important;
+            max-height: 52vw !important;
+        }
+        .prod-card .pc-harga { font-size: 13px !important; }
+        .prod-card .pc-nama  { font-size: 11.5px !important; }
+        .pc-add-ico { width: 22px !important; height: 22px !important; font-size: 12px !important; }
     }
 
     </style>
@@ -1530,6 +1865,80 @@
         <div class="col-md-6"><div class="mini-card shadow-sm h-100"><div class="icon-box bg-soft-green"><i class="fas fa-money-bill-wave text-success"></i></div><div class="card-content"><span class="label">SALDO FISIK LACI</span><h3 id="dash-saldo-tunai" class="value text-success">Rp 0</h3></div></div></div>
         <div class="col-md-6"><div class="mini-card shadow-sm h-100"><div class="icon-box bg-soft-blue"><i class="fas fa-qrcode text-primary"></i></div><div class="card-content"><span class="label">SALDO DIGITAL (QRIS)</span><h3 id="dash-saldo-qris" class="value text-primary">Rp 0</h3></div></div></div>
     </div>
+    <!-- ══ RINGKASAN SEMUA KASIR (hanya tampil untuk Admin) ══ -->
+    <div class="row g-3 mb-4" id="admin-cabang-summary" style="display:none">
+        <div class="col-12">
+            <div class="dash-card shadow-sm" style="border-left:4px solid #7c3aed">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-people-fill me-2" style="color:#7c3aed"></i>Ringkasan Seluruh Kasir (Periode Dipilih)</h6>
+                    <span class="badge" style="background:#ede9fe;color:#6d28d9;font-size:11px" id="admin-summary-period">Hari Ini</span>
+                </div>
+                <div class="row g-2" id="admin-kasir-summary-cards">
+                    <div class="col-12 text-center text-muted py-3"><small>Memuat data...</small></div>
+                </div>
+                <div class="row g-2 mt-2 pt-2 border-top" id="admin-summary-totals">
+                    <div class="col-6 col-md-3">
+                        <div class="text-center p-2 rounded-3" style="background:#f0fdf4">
+                            <div class="text-muted" style="font-size:10px;font-weight:700;text-transform:uppercase">Total Transaksi</div>
+                            <div class="fw-bold text-success" id="admin-total-trx" style="font-size:1.1rem">0</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="text-center p-2 rounded-3" style="background:#eff6ff">
+                            <div class="text-muted" style="font-size:10px;font-weight:700;text-transform:uppercase">Total Omzet</div>
+                            <div class="fw-bold text-primary" id="admin-total-omzet" style="font-size:1.1rem">Rp 0</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="text-center p-2 rounded-3" style="background:#fef9ee">
+                            <div class="text-muted" style="font-size:10px;font-weight:700;text-transform:uppercase">Total Tunai</div>
+                            <div class="fw-bold text-warning" id="admin-total-tunai" style="font-size:1.1rem">Rp 0</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="text-center p-2 rounded-3" style="background:#fdf2ff">
+                            <div class="text-muted" style="font-size:10px;font-weight:700;text-transform:uppercase">Total QRIS</div>
+                            <div class="fw-bold" id="admin-total-qris" style="font-size:1.1rem;color:#7c3aed">Rp 0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══ RINGKASAN SEMUA KASIR (hanya tampil untuk Admin) ══ -->
+    <div class="row g-3 mb-4" id="admin-cabang-summary" style="display:none">
+        <div class="col-12">
+            <div class="dash-card shadow-sm" style="border-left:4px solid #7c3aed">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-people-fill me-2" style="color:#7c3aed"></i>Ringkasan Seluruh Kasir <span class="text-muted fw-normal">(Periode Dipilih)</span></h6>
+                    <span class="badge" style="background:#ede9fe;color:#6d28d9;font-size:11px" id="admin-summary-period">Hari Ini</span>
+                </div>
+                <div class="row g-2 mb-3" id="admin-kasir-summary-cards">
+                    <div class="col-12 text-center text-muted py-2"><small>Memuat data...</small></div>
+                </div>
+                <div class="row g-2 pt-2 border-top">
+                    <div class="col-6 col-md-3"><div class="text-center p-2 rounded-3" style="background:#f0fdf4">
+                        <div class="text-muted" style="font-size:10px;font-weight:700;text-transform:uppercase">Total Transaksi</div>
+                        <div class="fw-bold text-success" id="admin-total-trx" style="font-size:1.05rem">0</div>
+                    </div></div>
+                    <div class="col-6 col-md-3"><div class="text-center p-2 rounded-3" style="background:#eff6ff">
+                        <div class="text-muted" style="font-size:10px;font-weight:700;text-transform:uppercase">Total Omzet</div>
+                        <div class="fw-bold text-primary" id="admin-total-omzet" style="font-size:1.05rem">Rp 0</div>
+                    </div></div>
+                    <div class="col-6 col-md-3"><div class="text-center p-2 rounded-3" style="background:#fef9ee">
+                        <div class="text-muted" style="font-size:10px;font-weight:700;text-transform:uppercase">Total Tunai</div>
+                        <div class="fw-bold text-warning" id="admin-total-tunai" style="font-size:1.05rem">Rp 0</div>
+                    </div></div>
+                    <div class="col-6 col-md-3"><div class="text-center p-2 rounded-3" style="background:#fdf2ff">
+                        <div class="text-muted" style="font-size:10px;font-weight:700;text-transform:uppercase">Total QRIS</div>
+                        <div class="fw-bold" id="admin-total-qris" style="font-size:1.05rem;color:#7c3aed">Rp 0</div>
+                    </div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="row g-3 mb-4">
         <div class="col-md-7"><div class="dash-card shadow-sm h-100"><h6><i class="bi bi-graph-up-arrow me-2 text-primary"></i>Revenue Trend</h6><div style="position:relative;height:240px;width:100%"><canvas id="revenueChart"></canvas></div></div></div>
         <div class="col-md-5"><div class="dash-card shadow-sm h-100"><h6><i class="bi bi-bar-chart-fill me-2 text-warning"></i>Top 10 Produk Terjual</h6><div style="position:relative;height:240px;width:100%"><canvas id="produkChart"></canvas></div></div></div>
@@ -1581,8 +1990,17 @@
         <div class="mb-3"><button class="btn btn-sm btn-outline-secondary rounded-pill" onclick="tampilMeja()"><i class="bi bi-arrow-left me-1"></i> Kembali ke Denah</button></div>
         <div class="row g-3">
             <div class="col-md-8">
-                <div class="input-group mb-3 shadow-sm"><span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span><input type="text" class="form-control border-start-0" placeholder="Cari menu..." onkeyup="renderProduk(this.value)"></div>
-                <div class="row g-2" id="grid-produk" style="max-height:65vh;overflow-y:auto"></div>
+                <!-- Search Bar Premium -->
+                <div class="produk-search-wrap mb-3">
+                    <i class="bi bi-search search-ico"></i>
+                    <input type="text" class="form-control" id="produk-search-input" placeholder="Cari menu..." oninput="renderProduk(this.value)">
+                </div>
+                <!-- Category Pills -->
+                <div class="cat-pill-wrap mb-2" id="cat-pill-bar">
+                    <div class="cat-pill active" onclick="setProdukKategori('')">✦ Semua</div>
+                </div>
+                <!-- Product Grid -->
+                <div id="grid-produk" style="max-height:65vh;overflow-y:auto"></div>
             </div>
             <div class="col-md-4">
                 <div class="dash-card shadow-sm sticky-top" style="top:20px">
@@ -1844,6 +2262,74 @@
         </div>
       </div>
     </div>
+    <!-- ═══════════════════════════════════════════════════════════
+         PENGATURAN MAX DURASI SHIFT
+    ════════════════════════════════════════════════════════════════ -->
+    <div class="dash-card shadow-sm mb-4" id="card-max-shift-setting">
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <div style="width:38px;height:38px;background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:10px;display:flex;align-items:center;justify-content:center">
+                <i class="bi bi-clock-history text-white" style="font-size:17px"></i>
+            </div>
+            <div>
+                <h6 class="mb-0 fw-bold">Batas Maksimum Durasi Shift</h6>
+                <small class="text-muted">Waktu terlama satu sesi shift sebelum dianggap kadaluarsa</small>
+            </div>
+        </div>
+
+        <div class="row g-3 align-items-end">
+            <!-- Input jam -->
+            <div class="col-sm-5 col-md-4">
+                <label class="form-label small fw-bold text-secondary mb-1">
+                    <i class="bi bi-hourglass-split me-1 text-warning"></i>Durasi Maks (Jam)
+                </label>
+                <div class="input-group">
+                    <input type="number" id="input-max-shift-jam"
+                           class="form-control fw-bold text-center"
+                           style="font-size:1.2rem;border-radius:10px 0 0 10px"
+                           min="4" max="24" step="1" placeholder="16"
+                           oninput="previewMaxShift(this.value)">
+                    <span class="input-group-text fw-bold" style="border-radius:0 10px 10px 0">jam</span>
+                </div>
+                <div class="form-text text-muted" style="font-size:11px">Minimum 4 jam, maksimum 24 jam</div>
+            </div>
+
+            <!-- Preview -->
+            <div class="col-sm-4 col-md-4">
+                <div class="p-2 rounded-3 text-center" style="background:#fef9ee;border:1.5px dashed #f59e0b">
+                    <div class="text-muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Aktif Sekarang</div>
+                    <div class="fw-bold text-warning" id="label-max-shift-aktif" style="font-size:1.15rem">16 jam</div>
+                    <div class="text-muted" style="font-size:10px" id="label-max-shift-ms">= 57.600.000 ms</div>
+                </div>
+            </div>
+
+            <!-- Tombol simpan -->
+            <div class="col-sm-3 col-md-4 d-flex gap-2">
+                <button class="btn btn-warning fw-bold flex-grow-1 shadow-sm"
+                        style="border-radius:10px"
+                        onclick="simpanMaxShift()">
+                    <i class="bi bi-floppy-fill me-1"></i> Simpan
+                </button>
+                <button class="btn btn-outline-secondary"
+                        style="border-radius:10px"
+                        title="Reset ke default 16 jam"
+                        onclick="resetMaxShift()">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Info tip -->
+        <div class="mt-3 p-2 rounded-3 d-flex gap-2 align-items-start" style="background:#f0fdf4;border:1px solid #bbf7d0;font-size:12px">
+            <i class="bi bi-info-circle-fill text-success mt-1 flex-shrink-0"></i>
+            <span class="text-secondary">
+                <strong class="text-success">Contoh:</strong>
+                Shift malam mulai <strong>23:00</strong> + batas <strong>16 jam</strong>
+                → transaksi dihitung hingga maksimal <strong>15:00 hari berikutnya</strong>.
+                Sesi yang dimulai lebih dari batas ini akan dianggap <em>kadaluarsa</em> dan tidak tampil di closing.
+            </span>
+        </div>
+    </div>
+
     <div class="row g-3" id="grid-shift-mgmt"></div>
 </div>
 
@@ -1930,6 +2416,18 @@
                     </tr>
                 </thead>
                 <tbody id="rekap-shift-body"></tbody>
+                <tfoot id="rekap-shift-tfoot" style="display:none">
+                    <tr style="background:linear-gradient(135deg,#1e40af,#3b82f6);color:white;font-weight:700">
+                        <td colspan="6" class="text-end" style="font-size:12px;letter-spacing:.3px">⬇ TOTAL SEMUA KASIR</td>
+                        <td class="text-end" id="rekap-foot-modal">Rp 0</td>
+                        <td class="text-end" id="rekap-foot-tunai">Rp 0</td>
+                        <td class="text-end" id="rekap-foot-qris">Rp 0</td>
+                        <td class="text-end" id="rekap-foot-trx">0</td>
+                        <td class="text-end" id="rekap-foot-diskon">-Rp 0</td>
+                        <td class="text-end" id="rekap-foot-keluar">-Rp 0</td>
+                        <td class="text-end" id="rekap-foot-saldo">Rp 0</td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </div>
@@ -2743,46 +3241,94 @@ async function konfirmasiAbsen() {
 // AUTH
 // =============================================================
 async function doLogin() {
-    const u = document.getElementById('user').value;
-    const p = document.getElementById('pass').value;
-    if (!u || !p) return Swal.fire('Perhatian','Username dan password tidak boleh kosong','warning');
-    
-    // Guard dengan acquireSubmitLock - lebih longgar karena in-memory
-    // TTL 5 detik saja (bukan 15 detik default) untuk login
+
+    const u = document.getElementById('user').value.trim();
+    const p = document.getElementById('pass').value.trim();
+
+    if (!u || !p) {
+        return Swal.fire(
+            'Perhatian',
+            'Username dan password tidak boleh kosong',
+            'warning'
+        );
+    }
+
     if (!acquireSubmitLock('login', 5000)) return;
-    
+
     const btnLogin = document.querySelector('.btn-login');
-    if (btnLogin) { btnLogin.disabled = true; btnLogin.style.opacity = '0.7'; }
-    
-    // Fallback: pastikan button selalu di-enable kembali setelah 5 detik
-    const fallbackTimer = setTimeout(() => {
-        if (btnLogin) { btnLogin.disabled = false; btnLogin.style.opacity = ''; }
-        releaseSubmitLock('login');
-    }, 5000);
-    
-    loading(true);
+
     try {
-        const r = await fetch(API_URL, { method:"POST", body: JSON.stringify({action:'login', user:u, pass:p}) });
+
+        loading(true);
+
+        if (btnLogin) {
+            btnLogin.disabled = true;
+            btnLogin.style.opacity = '0.7';
+        }
+
+        const r = await fetch(API_URL, {
+            method: "POST",
+            body: JSON.stringify({
+                action: 'login',
+                user: u,
+                pass: p
+            })
+        });
+
         const res = await r.json();
+
         if (res.status === 'success') {
+
             localStorage.setItem('user_nama',   res.name || u);
             localStorage.setItem('user_role',   res.role || 'Kasir');
             localStorage.setItem('user_cabang', res.cabang || '');
-            loading(false);
-            clearTimeout(fallbackTimer);
-            releaseSubmitLock('login');
-            setTimeout(() => location.reload(), 100);
-            return;
+
+            // FIX LOGIN SESSION
+            localStorage.setItem('login_time', new Date().toISOString());
+            sessionStorage.setItem('login_active', 'true');
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Login Berhasil',
+                timer: 1000,
+                showConfirmButton: false
+            });
+
+            setTimeout(() => {
+                location.reload();
+            }, 800);
+
         } else {
-            Swal.fire('Akses Ditolak', 'Username/Password Salah', 'error');
+
+            Swal.fire(
+                'Akses Ditolak',
+                'Username / Password Salah',
+                'error'
+            );
+
         }
-    } catch(e) {
-        Swal.fire('Error','Gagal terhubung ke server','error');
+
+    } catch (e) {
+
+        console.error(e);
+
+        Swal.fire(
+            'Error',
+            'Gagal terhubung ke server',
+            'error'
+        );
+
     } finally {
-        clearTimeout(fallbackTimer);
+
         loading(false);
-        if (btnLogin) { btnLogin.disabled = false; btnLogin.style.opacity = ''; }
+
+        if (btnLogin) {
+            btnLogin.disabled = false;
+            btnLogin.style.opacity = '';
+        }
+
         releaseSubmitLock('login');
+
     }
 }
 
@@ -2883,7 +3429,7 @@ async function refreshData() {
         buildCabangFilterDropdown();
 
         if (typeof renderMeja === "function") renderMeja();
-        if (typeof renderProduk === "function") renderProduk();
+        if (typeof renderProduk === "function") { renderKategoriPills(); renderProduk(); }
         if (typeof updateDashboard === "function") updateDashboard();
 
         // Selalu render absen log setelah data fresh
@@ -2980,6 +3526,67 @@ function filterByCabang(arr, cabangField = 'Cabang') {
 // =============================================================
 // DASHBOARD
 // =============================================================
+// ================================================================
+// ADMIN: Ringkasan semua kasir di dashboard
+// ================================================================
+function renderAdminCabangSummary(paidHistory, start, end) {
+    const role = (localStorage.getItem('user_role') || 'Kasir').toLowerCase();
+    const wrap = document.getElementById('admin-cabang-summary');
+    if (!wrap) return;
+    if (role !== 'admin') { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+
+    // Label periode
+    const today = new Date().toLocaleDateString('en-CA');
+    const periodEl = document.getElementById('admin-summary-period');
+    if (periodEl) periodEl.textContent = (start === end && start === today) ? 'Hari Ini' : start + ' s/d ' + end;
+
+    // Agregasi per kasir
+    const METODE = ['tunai', 'qris', 'transfer'];
+    const byKasir = {};
+    (paidHistory || []).forEach(h => {
+        const metode = (h.Metode_Bayar || h.metode_bayar || '').toString().trim().toLowerCase();
+        const total  = Number(h.Total_Harga || h.total_harga || 0);
+        if (!METODE.includes(metode) || total <= 0) return;
+        const nama = (h.Kasir || h.kasir || '—').toString().trim() || '—';
+        if (!byKasir[nama]) byKasir[nama] = { trx: 0, omzet: 0, tunai: 0, qris: 0 };
+        byKasir[nama].trx++;
+        byKasir[nama].omzet += total;
+        if (metode === 'tunai') byKasir[nama].tunai += total;
+        else byKasir[nama].qris += total;
+    });
+
+    const entries = Object.entries(byKasir).sort((a, b) => b[1].omzet - a[1].omzet);
+    const colors  = ['#7c3aed','#3b82f6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#84cc16'];
+    const cardsEl = document.getElementById('admin-kasir-summary-cards');
+
+    if (entries.length === 0) {
+        if (cardsEl) cardsEl.innerHTML = '<div class="col-12 text-center text-muted py-2"><small><i class="bi bi-inbox me-1"></i>Tidak ada data kasir pada periode ini</small></div>';
+    } else {
+        if (cardsEl) cardsEl.innerHTML = entries.map(([nama, d], i) => {
+            const col = colors[i % colors.length];
+            return `<div class="col-6 col-md-3">
+                <div style="background:#f8fafc;border-radius:12px;padding:10px 12px;border-left:3px solid ${col}">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <div style="width:28px;height:28px;border-radius:50%;background:${col};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px;flex-shrink:0">${nama.charAt(0).toUpperCase()}</div>
+                        <div style="font-size:11px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1e293b">${nama}</div>
+                    </div>
+                    <div style="font-size:13px;font-weight:800;color:${col}">Rp ${d.omzet.toLocaleString('id-ID')}</div>
+                    <div style="font-size:10px;color:#64748b">${d.trx} trx &nbsp;|&nbsp; T: ${(d.tunai/1000).toFixed(0)}k &nbsp;Q: ${(d.qris/1000).toFixed(0)}k</div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    // Grand total
+    const gt = entries.reduce((s, [, d]) => ({ trx: s.trx + d.trx, omzet: s.omzet + d.omzet, tunai: s.tunai + d.tunai, qris: s.qris + d.qris }), { trx: 0, omzet: 0, tunai: 0, qris: 0 });
+    const setEl2 = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setEl2('admin-total-trx',   gt.trx + ' kali');
+    setEl2('admin-total-omzet', 'Rp ' + gt.omzet.toLocaleString('id-ID'));
+    setEl2('admin-total-tunai', 'Rp ' + gt.tunai.toLocaleString('id-ID'));
+    setEl2('admin-total-qris',  'Rp ' + gt.qris.toLocaleString('id-ID'));
+}
+
 function updateDashboard() {
     if (!DATA) return;
     
@@ -3008,8 +3615,8 @@ function updateDashboard() {
     const filteredExp = filterByCabang(filterByDate(DATA.expenses || []), 'Cabang');
     const filteredModal = filterByCabang(filterByDate(DATA.modal || []), 'Cabang');
 
-    // [BUG FIX] Filter hanya transaksi TERBAYAR: metode exact match + total > 0
-    // Mencegah pesanan pending/reset ikut terhitung di semua kalkulasi dashboard
+    // ==================== FILTER TRANSAKSI TERBAYAR ====================
+    // Hanya transaksi dengan metode valid (bukan pending/reset) dan total > 0
     const METODE_BAYAR_VALID = ['Tunai', 'QRIS', 'Transfer'];
     const paidHistory = filteredHistoryFinal.filter(h => {
         const metode = (h.Metode_Bayar || h.metode_bayar || '').toString().trim();
@@ -3017,115 +3624,164 @@ function updateDashboard() {
         return METODE_BAYAR_VALID.includes(metode) && total > 0;
     });
 
-    const totalSales = paidHistory.reduce((s,i) => s + Number(i.Total_Harga || i.total_harga || 0), 0);
-    const totalTunaiAll = paidHistory.filter(h => (h.Metode_Bayar || h.metode_bayar) === "Tunai")
-                            .reduce((s,i) => s + Number(i.Total_Harga || i.total_harga || 0), 0);
-    const totalQRIS = paidHistory.filter(h => ["QRIS","Transfer"].includes(h.Metode_Bayar || h.metode_bayar))
-                        .reduce((s,i) => s + Number(i.Total_Harga || i.total_harga || 0), 0);
     const totalKeluarAll = filteredExp.reduce((s,i) => s + Number(i.Nominal || i.nominal || 0), 0);
 
-    // ==================== SALDO FISIK TUNAI (FIXED) ====================
+    // ==================== KALKULASI SHIFT ====================
     const role = (localStorage.getItem('user_role') || 'Kasir').toLowerCase();
-    let saldoFisik = 0;
+    const setEl = (id, val) => { const el = document.getElementById(id); if(el) el.innerText = val; };
 
-    if (role !== 'admin') {
-        // === KASIR BIASA ===
-        // Saldo Fisik Laci = Modal Awal + Penjualan Tunai + Kas Masuk Tunai - Pengeluaran
-        const waktuAbsen = localStorage.getItem('shift_start_iso');
-        const modalAwal  = Number(localStorage.getItem('shift_modal_awal') || 0);
+    const userNama  = (localStorage.getItem('user_nama') || '').trim();
+    const activeCab = (localStorage.getItem('user_cabang') || '');
 
-        if (waktuAbsen) {
-            const wa = new Date(waktuAbsen);
-
-            // [FIX] Pakai paidHistory (sudah trim+valid) filter ulang per waktu shift
-            // Hindari bug case/whitespace pada Metode_Bayar dari raw filteredHistoryFinal
-            const tunaiShift = paidHistory.filter(h => {
-                const ts     = h.Timestamp || h.timestamp || h.Waktu || h.waktu;
-                const metode = (h.Metode_Bayar || h.metode_bayar || '').toString().trim().toLowerCase();
-                return ts && new Date(ts) >= wa && metode === 'tunai';
-            }).reduce((s,i) => s + Number(i.Total_Harga || i.total_harga || 0), 0);
-
-            const kasMasukShift = (DATA.modal || []).filter(m => {
-                const ts   = m.Timestamp || m.timestamp || m.Waktu || m.waktu;
-                const tipe = (m.Tipe || m.tipe || '').toLowerCase();
-                const cab  = (m.Cabang || m.cabang || '').toLowerCase();
-                const activeCabang = (localStorage.getItem('user_cabang') || '').toLowerCase();
-                const matchCabang  = !activeCabang || cab === activeCabang;
-                return ts && new Date(ts) >= wa && tipe === 'masuk' && matchCabang;
-            }).reduce((s,m) => s + parseFloat(m.Jumlah || m.jumlah || m.Nominal || m.nominal || 0), 0);
-
-            const keluarShift = filteredExp.filter(e => {
-                const ts = e.Timestamp || e.timestamp || e.Waktu || e.waktu;
-                return ts && new Date(ts) >= wa;
-            }).reduce((s,i) => s + Number(i.Nominal || i.nominal || 0), 0);
-
-            // Formula: Modal Awal + Penjualan Tunai + Kas Masuk Tunai - Pengeluaran
-            saldoFisik = modalAwal + tunaiShift + kasMasukShift - keluarShift;
-            console.log('✅ Saldo Fisik Kasir (shift):', { modalAwal, tunaiShift, kasMasukShift, keluarShift, saldoFisik });
+    // ── Bangun waMs: waktu mulai shift kasir ──
+    // Prioritas 1: shift_start_iso localStorage (toleransi 24 jam)
+    // Prioritas 2: absenLog server (kasir ini, status Masuk, hari ini)
+    // Prioritas 3: fallback = midnight hari ini (ambil semua transaksi hari ini)
+    let waMs = 0;
+    const _rawIso = localStorage.getItem('shift_start_iso');
+    if (_rawIso) {
+        const _t = new Date(_rawIso).getTime();
+        const _elapsed = Date.now() - _t;
+        if (!isNaN(_t) && _elapsed >= 0 && _elapsed <= 24 * 3600 * 1000) {
+            waMs = _t;
         } else {
-            // Fallback tanpa waktu absen: pakai data ter-filter tanggal
-            const kasMasukAll = filteredModal.filter(m => (m.Tipe || m.tipe || '').toLowerCase() === 'masuk')
-                .reduce((s,m) => s + Number(m.Jumlah || m.jumlah || m.Nominal || m.nominal || 0), 0);
-            // Modal awal tetap diikutkan agar tidak selisih
-            saldoFisik = modalAwal + totalTunaiAll + kasMasukAll - totalKeluarAll;
-            console.log('⚠️ Saldo Fisik Kasir (no-absen fallback):', { modalAwal, totalTunaiAll, kasMasukAll, totalKeluarAll, saldoFisik });
+            console.warn('⚠️ shift_start_iso di luar rentang 24j, elapsed=', (_elapsed/3600000).toFixed(1), 'j — akan di-fallback');
         }
     }
-    else {
-        // === ADMIN - Formula: Modal Awal + Penjualan Tunai + Kas Masuk Tunai - Pengeluaran ===
-        // Hitung berdasarkan data ter-filter (range tanggal & cabang)
-        const kasMasukAll = filteredModal.filter(m => (m.Tipe || m.tipe || '').toLowerCase() === 'masuk')
-            .reduce((s,m) => s + Number(m.Jumlah || m.jumlah || m.Nominal || m.nominal || 0), 0);
+    if (!waMs && DATA.absenLog && DATA.absenLog.length) {
+        const todayStr = new Date().toLocaleDateString('en-CA');
+        const sesiMasuk = (DATA.absenLog || []).filter(a => {
+            const ts  = a.Timestamp || a.timestamp || a.Waktu || a.waktu;
+            const st  = (a.Status || a.status || '').toString().toLowerCase();
+            const ksr = (a.Kasir || a.kasir || '').toString().trim();
+            if (!ts || st !== 'masuk') return false;
+            if (userNama && ksr.toLowerCase() !== userNama.toLowerCase()) return false;
+            return new Date(ts).toLocaleDateString('en-CA') === todayStr;
+        }).sort((a,b) => new Date(b.Timestamp||b.timestamp||0) - new Date(a.Timestamp||a.timestamp||0));
+        if (sesiMasuk.length) {
+            const _t = new Date(sesiMasuk[0].Timestamp || sesiMasuk[0].timestamp).getTime();
+            if (!isNaN(_t)) {
+                waMs = _t;
+                if (!_rawIso) localStorage.setItem('shift_start_iso', new Date(_t).toISOString());
+                console.log('✅ waMs dipulihkan dari absenLog:', new Date(_t).toLocaleString('id-ID'));
+            }
+        }
+    }
+    if (!waMs) {
+        // Fallback: midnight hari ini (pastikan semua transaksi hari ini masuk)
+        waMs = new Date(new Date().toLocaleDateString('en-CA') + 'T00:00:00').getTime();
+        console.warn('⚠️ Fallback waMs = midnight hari ini:', new Date(waMs).toLocaleString('id-ID'));
+    }
+    const waCeilMs = Date.now(); // batas atas = sekarang (tidak ada transaksi yang terlewat)
 
-        // Cari total modal awal dari rekap shift dalam range tanggal (bisa lebih dari 1 shift)
-        let modalAwalAdmin = 0;
+    // Helper cocokkan cabang
+    const matchCabFn = (item, idField) => {
+        if (!activeCab) return true;
+        const cab = (item.Cabang || item.cabang || '').toString();
+        const id  = (item[idField] || item[idField.toLowerCase()] || '').toString();
+        return cab === activeCab || id.includes(activeCab);
+    };
+    // Helper cocokkan kasir — field Kasir kosong (data lama) = diterima
+    const matchKsrFn = (ksr) => {
+        const k = ksr ? ksr.toString().trim() : '';
+        if (!userNama || !k) return true;
+        return k.toLowerCase() === userNama.toLowerCase();
+    };
+
+    // ── shiftHistory: transaksi terbayar dalam window shift kasir aktif ──
+    // Admin: semua transaksi cabang dalam range tanggal (= paidHistory)
+    // Kasir: filter tambahan per kasir + window waktu
+    const shiftHistory = (role !== 'admin') ? paidHistory.filter(h => {
+        const ts  = h.Timestamp || h.timestamp || h.Waktu || h.waktu;
+        const ksr = (h.Kasir || h.kasir || '').toString().trim();
+        if (!ts) return false;
+        if (!matchCabFn(h, 'ID_Transaksi')) return false;
+        const tsMs = new Date(ts).getTime();
+        if (isNaN(tsMs) || tsMs < waMs || tsMs > waCeilMs) return false;
+        return matchKsrFn(ksr);
+    }) : paidHistory;
+
+    const tunaiShift = shiftHistory
+        .filter(h => (h.Metode_Bayar||h.metode_bayar||'').toString().trim().toLowerCase() === 'tunai')
+        .reduce((s,h) => s + Number(h.Total_Harga||h.total_harga||0), 0);
+    const qrisShift  = shiftHistory
+        .filter(h => ['qris','transfer'].includes((h.Metode_Bayar||h.metode_bayar||'').toString().trim().toLowerCase()))
+        .reduce((s,h) => s + Number(h.Total_Harga||h.total_harga||0), 0);
+    const salesToday = tunaiShift + qrisShift; // omzet shift (tunai+qris)
+
+    // ── Kas masuk manual dalam window shift ──
+    let kasMasukShift = 0;
+    kasMasukShift = (role !== 'admin' ? (DATA.modal||[]) : filteredModal).filter(m => {
+        const ts   = m.Timestamp || m.timestamp || m.Waktu || m.waktu;
+        const tipe = (m.Tipe || m.tipe || '').toLowerCase();
+        const ksr  = (m.Kasir || m.kasir || '').toString().trim();
+        if (!ts || tipe !== 'masuk') return false;
+        if (!matchCabFn(m, 'ID')) return false;
+        const tsMs = new Date(ts).getTime();
+        if (isNaN(tsMs) || tsMs < waMs || tsMs > waCeilMs) return false;
+        return role !== 'admin' ? matchKsrFn(ksr) : true;
+    }).reduce((s,m) => s + parseFloat(m.Jumlah||m.jumlah||m.Nominal||m.nominal||0), 0);
+
+    // ── Pengeluaran dalam window shift ──
+    const keluarShift = (role !== 'admin' ? (DATA.expenses||[]) : filteredExp).filter(e => {
+        const ts  = e.Timestamp || e.timestamp || e.Waktu || e.waktu;
+        const ksr = (e.Kasir || e.kasir || '').toString().trim();
+        if (!ts) return false;
+        if (!matchCabFn(e, 'ID')) return false;
+        const tsMs = new Date(ts).getTime();
+        if (isNaN(tsMs) || tsMs < waMs || tsMs > waCeilMs) return false;
+        return role !== 'admin' ? matchKsrFn(ksr) : true;
+    }).reduce((s,e) => s + parseFloat(e.Jumlah||e.jumlah||e.Nominal||e.nominal||0), 0);
+
+    // ── Modal awal ──
+    let modalAwal = 0;
+    if (role !== 'admin') {
+        modalAwal = Number(localStorage.getItem('shift_modal_awal') || 0);
+    } else {
+        // Admin: ambil modal awal dari rekap shift pertama dalam range
         if (DATA.rekapShift && Array.isArray(DATA.rekapShift)) {
             const filteredRekap = DATA.rekapShift.filter(r => {
                 const ts = r.Timestamp || r.timestamp || r.Waktu || r.waktu;
                 if (!ts) return false;
                 const d = new Date(ts).toLocaleDateString('en-CA');
-                // Filter cabang juga jika admin memilih cabang tertentu
-                const el = document.getElementById('filter-cabang-dashboard');
-                const selected = el ? el.value : 'Semua';
-                if (selected !== 'Semua') {
+                const elCab = document.getElementById('filter-cabang-dashboard');
+                const selCab = elCab ? elCab.value : 'Semua';
+                if (selCab !== 'Semua') {
                     const rc = (r.Cabang || r.cabang || '').toString();
-                    if (rc !== selected) return false;
+                    if (rc !== selCab) return false;
                 }
                 return d >= start && d <= end;
             });
-
             if (filteredRekap.length > 0) {
-                // Jika ada data rekap: gunakan modal awal shift pertama dalam range
-                const sorted = [...filteredRekap].sort((a, b) =>
-                    new Date(a.Timestamp || a.timestamp || 0) - new Date(b.Timestamp || b.timestamp || 0)
-                );
-                modalAwalAdmin = Number(sorted[0].Modal_Awal || sorted[0].modal_awal || 0);
-                console.log('✅ Modal Awal Admin dari Rekap Shift:', modalAwalAdmin);
+                const sorted = [...filteredRekap].sort((a,b) => new Date(a.Timestamp||a.timestamp||0) - new Date(b.Timestamp||b.timestamp||0));
+                modalAwal = Number(sorted[0].Modal_Awal || sorted[0].modal_awal || 0);
             }
         }
-
-        // Formula konsisten: Modal Awal + Penjualan Tunai + Kas Masuk - Pengeluaran
-        saldoFisik = modalAwalAdmin + totalTunaiAll + kasMasukAll - totalKeluarAll;
-        console.log('✅ Saldo Fisik Admin:', { modalAwalAdmin, totalTunaiAll, kasMasukAll, totalKeluarAll, saldoFisik });
     }
 
-    // ==================== UPDATE UI ====================
-    const setEl = (id, val) => { 
-        const el = document.getElementById(id); 
-        if(el) el.innerText = val; 
-    };
+    // ── Saldo Fisik Laci = Modal Awal + Tunai Shift + Kas Masuk Manual - Pengeluaran ──
+    const saldoFisik = modalAwal + tunaiShift + kasMasukShift - keluarShift;
 
-    setEl('dash-sales', "Rp " + totalSales.toLocaleString());
-    setEl('dash-orders', paidHistory.length);
-    setEl('dash-saldo-tunai', "Rp " + saldoFisik.toLocaleString());
-    setEl('dash-saldo-qris', "Rp " + totalQRIS.toLocaleString());
-    // Kas masuk manual digunakan untuk saldo fisik laci (sudah dihitung di atas)
-    const totalKasMasukLog = filteredModal.filter(m => (m.Tipe || m.tipe || '').toLowerCase() === 'masuk')
-        .reduce((s,i) => s + Number(i.Jumlah || i.jumlah || i.Nominal || i.nominal || 0), 0);
-    setEl('display-total-masuk', "Rp " + (role !== 'admin' ? Number(localStorage.getItem('shift_modal_awal') || 0) : totalKasMasukLog).toLocaleString());
-    setEl('display-total-keluar', "Rp " + totalKeluarAll.toLocaleString());
-    // KAS MASUK (HARI INI) = total penjualan tunai
-    setEl('stats-kas-masuk', "Rp " + totalTunaiAll.toLocaleString());
+    console.log('[Dashboard] role:', role, '| waMs:', new Date(waMs).toLocaleString('id-ID'),
+        '| shiftHistory:', shiftHistory.length, 'trx | tunai:', tunaiShift, '| qris:', qrisShift,
+        '| kasMasuk:', kasMasukShift, '| keluar:', keluarShift, '| modal:', modalAwal, '| saldo:', saldoFisik);
+
+    // ==================== UPDATE UI ====================
+
+    // SALES TODAY = total omzet shift (tunai + qris)
+    setEl('dash-sales', 'Rp ' + salesToday.toLocaleString());
+    // ORDERS = jumlah transaksi shift
+    setEl('dash-orders', shiftHistory.length);
+    // SALDO FISIK LACI = modal + tunai + kas masuk - pengeluaran
+    setEl('dash-saldo-tunai', 'Rp ' + saldoFisik.toLocaleString());
+    // SALDO DIGITAL QRIS = total qris shift
+    setEl('dash-saldo-qris', 'Rp ' + qrisShift.toLocaleString());
+    // MODAL AWAL SHIFT (card kiri bawah)
+    setEl('display-total-masuk', 'Rp ' + modalAwal.toLocaleString());
+    // KAS KELUAR
+    setEl('display-total-keluar', 'Rp ' + keluarShift.toLocaleString());
+    // KAS MASUK (HARI INI) = penjualan tunai shift (kas yang masuk ke laci dari penjualan)
+    setEl('stats-kas-masuk', 'Rp ' + tunaiShift.toLocaleString());
     setEl('dash-cashier', localStorage.getItem('user_nama') || '-');
 
     // Bagian lain tetap sama
@@ -3150,6 +3806,9 @@ function updateDashboard() {
     renderRiwayatKas(gabungLog);
     renderAbsenLog(DATA.absenLog || []);
     renderRecentOrders();   // ← Tambahkan baris ini
+
+    // Ringkasan semua kasir untuk Admin
+    renderAdminCabangSummary(paidHistory, start, end);
 }
 
 // =============================================================
@@ -3445,23 +4104,153 @@ function renderMeja() {
         </div>`).join('');
 }
 
+// =============================================================
+// POS KATEGORI FILTER — state
+// =============================================================
+let AKTIF_KATEGORI = '';
+
+function setProdukKategori(kat) {
+    AKTIF_KATEGORI = kat;
+    // Update active pill style
+    document.querySelectorAll('#cat-pill-bar .cat-pill').forEach(el => {
+        const elKat = el.dataset.kat !== undefined ? el.dataset.kat : '';
+        el.classList.toggle('active', elKat === kat);
+    });
+    // Re-render product dengan filter
+    const searchVal = document.getElementById('produk-search-input')?.value || '';
+    renderProduk(searchVal);
+}
+
+function renderKategoriPills() {
+    const bar = document.getElementById('cat-pill-bar');
+    if (!bar) return;
+    const allKat = [...new Set(
+        (DATA.products || [])
+            .map(p => (p.Kategori || p.kategori || '').toString().trim())
+            .filter(k => k && k !== '-')
+    )].sort();
+
+    let html = `<div class="cat-pill active" data-kat="" onclick="setProdukKategori('')">✦ Semua</div>`;
+
+    // Emoji map untuk kategori umum cafe
+    const emojiMap = {
+        'kopi':'☕', 'coffee':'☕', 'minuman':'🥤', 'drink':'🥤',
+        'makanan':'🍽️', 'food':'🍽️', 'snack':'🍪', 'dessert':'🍮',
+        'tea':'🍵', 'teh':'🍵', 'juice':'🍊', 'jus':'🍊',
+        'non coffee':'🧋', 'non-coffee':'🧋', 'es':'🧊', 'smoothie':'🥤',
+        'cake':'🍰', 'bread':'🍞', 'roti':'🍞', 'pastry':'🥐',
+        'milkshake':'🥛', 'frappe':'🥤'
+    };
+    function getEmoji(k) {
+        const kl = k.toLowerCase();
+        for (const [key, em] of Object.entries(emojiMap)) {
+            if (kl.includes(key)) return em + ' ';
+        }
+        return '';
+    }
+
+    allKat.forEach(k => {
+        html += `<div class="cat-pill" data-kat="${k}" onclick="setProdukKategori('${k.replace(/'/g,"\\'")}')">${getEmoji(k)}${k}</div>`;
+    });
+    bar.innerHTML = html;
+
+    // Re-set active state
+    document.querySelectorAll('#cat-pill-bar .cat-pill').forEach(el => {
+        const elKat = el.dataset.kat !== undefined ? el.dataset.kat : '';
+        el.classList.toggle('active', elKat === AKTIF_KATEGORI);
+    });
+}
+
 function renderProduk(f="") {
-    document.getElementById('grid-produk').innerHTML = (DATA.products||[])
-        .filter(p => (p.Nama||p.nama||"").toLowerCase().includes(f.toLowerCase()))
-        .map(p => {
-            const nama  = p.Nama || p.nama;
-            const harga = p.Harga || p.harga || 0;
-            const stok  = p.Stok !== undefined ? p.Stok : (p.stok !== undefined ? p.stok : null);
-            const isHabis = (stok !== null && stok !== '' && typeof stok === 'number' && stok <= 0);
-            const stokLabel = (stok !== null && stok !== '' && typeof stok === 'number')
-                ? `<div class="mt-1"><small class="badge ${stok<=5?'bg-warning text-dark':'bg-success'}">Stok: ${stok}</small></div>` : '';
-            return `<div class="col-6 col-md-4"><div class="prod-card shadow-sm ${isHabis?'stok-habis':''}"
-                onclick="${isHabis ? "Swal.fire('Stok Habis','Produk ini sudah habis','warning')" : `addKeCart('${(nama||"").replace(/'/g,"\\'")}', ${harga})`}">
-                <div class="fw-bold mb-1">${nama}</div>
-                <div class="text-primary fw-bold">Rp ${Number(harga).toLocaleString()}</div>
-                ${isHabis ? '<div class="mt-1"><small class="badge bg-danger">HABIS</small></div>' : stokLabel}
-            </div></div>`;
-        }).join('');
+    const grid = document.getElementById('grid-produk');
+    if (!grid) return;
+
+    // Color palette untuk kategori badges
+    const katColors = [
+        {bg:'#eff6ff',color:'#2563eb',border:'#bfdbfe'},
+        {bg:'#f0fdf4',color:'#16a34a',border:'#bbf7d0'},
+        {bg:'#fdf4ff',color:'#9333ea',border:'#e9d5ff'},
+        {bg:'#fff7ed',color:'#ea580c',border:'#fed7aa'},
+        {bg:'#fef2f2',color:'#dc2626',border:'#fecaca'},
+        {bg:'#f0f9ff',color:'#0284c7',border:'#bae6fd'},
+    ];
+    const katList = [...new Set(
+        (DATA.products||[]).map(p=>(p.Kategori||p.kategori||'').trim()).filter(k=>k&&k!=='-')
+    )].sort();
+    function getKatStyle(kat) {
+        if (!kat || kat==='-') return null;
+        const idx = katList.indexOf(kat);
+        return katColors[idx >= 0 ? idx % katColors.length : 0];
+    }
+
+    const filtered = (DATA.products||[]).filter(p => {
+        const nama = (p.Nama||p.nama||"").toLowerCase();
+        const kat  = (p.Kategori||p.kategori||"").toLowerCase();
+        const matchSearch = !f || nama.includes(f.toLowerCase()) || kat.includes(f.toLowerCase());
+        const matchKat = !AKTIF_KATEGORI || (p.Kategori||p.kategori||'').trim() === AKTIF_KATEGORI;
+        return matchSearch && matchKat;
+    });
+
+    if (filtered.length === 0) {
+        grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px 16px">
+            <i class="bi bi-search text-muted" style="font-size:2rem;opacity:.35"></i>
+            <p class="text-muted mt-2 fw-bold" style="font-size:13px">Menu tidak ditemukan</p>
+        </div>`;
+        return;
+    }
+
+    // Accent colour palette per category (matches katColors)
+    const accentGradients = [
+        'linear-gradient(90deg,#3b82f6,#60a5fa)',   // blue
+        'linear-gradient(90deg,#10b981,#34d399)',   // green
+        'linear-gradient(90deg,#9333ea,#c084fc)',   // purple
+        'linear-gradient(90deg,#f97316,#fb923c)',   // orange
+        'linear-gradient(90deg,#ef4444,#f87171)',   // red
+        'linear-gradient(90deg,#0ea5e9,#38bdf8)',   // sky
+    ];
+
+    grid.innerHTML = filtered.map(p => {
+        const nama  = p.Nama || p.nama || '';
+        const harga = Number(p.Harga || p.harga || 0);
+        const stok  = p.Stok !== undefined ? p.Stok : (p.stok !== undefined ? p.stok : null);
+        const kat   = (p.Kategori || p.kategori || '').toString().trim();
+        const isHabis = (stok !== null && stok !== '' && typeof stok === 'number' && stok <= 0);
+        const isTipis = (stok !== null && stok !== '' && typeof stok === 'number' && stok > 0 && stok <= 5);
+        const katStyle = getKatStyle(kat);
+        const katIdx   = katList.indexOf(kat);
+        const accentGrad = katIdx >= 0
+            ? accentGradients[katIdx % accentGradients.length]
+            : 'linear-gradient(90deg,#c5a059,#f1c40f)';
+
+        // Stok badge
+        let stokHtml = '';
+        if (stok !== null && stok !== '' && typeof stok === 'number' && !isHabis) {
+            stokHtml = `<span class="pc-stok ${isTipis ? 'tipis' : 'ok'}">${isTipis ? '⚠ ' : ''}${stok}</span>`;
+        }
+
+        // Kategori badge
+        const katHtml = kat && kat !== '-' && katStyle
+            ? `<span class="pc-kat" style="background:${katStyle.bg};color:${katStyle.color};border-color:${katStyle.border}">${kat}</span>`
+            : '<span></span>';
+
+        const clickFn = isHabis
+            ? `Swal.fire('Stok Habis','Produk ini sudah habis','warning')`
+            : `addKeCart('${(nama||"").replace(/'/g,"\\'").replace(/\\/g,"\\\\")}', ${harga})`;
+
+        return `<div class="prod-card ${isHabis ? 'stok-habis' : ''}" onclick="${clickFn}" style="--pc-accent:${accentGrad}">
+            <div class="pc-inner">
+                <div class="pc-top-row">
+                    ${katHtml}
+                    ${stokHtml}
+                </div>
+                <div class="pc-nama">${nama}</div>
+                <div class="pc-bottom-row">
+                    <div class="pc-harga">Rp ${harga.toLocaleString('id-ID')}</div>
+                    <div class="pc-add-ico"><i class="bi bi-plus"></i></div>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
 }
 
 // bukaKasir: see fixed version below
@@ -4639,10 +5428,96 @@ function cleanTime(timeStr) {
 // =============================================================
 // RENDER ABSEN HARI INI — FIXED & ROBUST
 // =============================================================
+// ================================================================
+// MAX SHIFT DURATION SETTING
+// Membaca / menyimpan batas durasi shift dari localStorage.
+// Key: 'setting_max_shift_jam'  (default: 16)
+// ================================================================
+function getMaxShiftJam() {
+    const raw = localStorage.getItem('setting_max_shift_jam');
+    const jam = parseFloat(raw);
+    if (!raw || isNaN(jam) || jam < 4 || jam > 24) return 16;
+    return jam;
+}
+function getMaxShiftMs() {
+    return getMaxShiftJam() * 60 * 60 * 1000;
+}
+
+function previewMaxShift(val) {
+    const jam = parseFloat(val);
+    const labelAktif = document.getElementById('label-max-shift-aktif');
+    const labelMs    = document.getElementById('label-max-shift-ms');
+    if (!labelAktif) return;
+    if (!val || isNaN(jam) || jam < 4 || jam > 24) {
+        labelAktif.textContent = '—';
+        if (labelMs) labelMs.textContent = '';
+        return;
+    }
+    const ms = jam * 3600000;
+    labelAktif.textContent = jam % 1 === 0 ? jam + ' jam' : jam.toFixed(1) + ' jam';
+    if (labelMs) labelMs.textContent = '= ' + ms.toLocaleString('id-ID') + ' ms';
+}
+
+function simpanMaxShift() {
+    const input = document.getElementById('input-max-shift-jam');
+    if (!input) return;
+    const jam = parseFloat(input.value);
+    if (isNaN(jam) || jam < 4 || jam > 24) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Nilai Tidak Valid',
+            text: 'Masukkan durasi antara 4 hingga 24 jam.',
+            confirmButtonColor: '#f59e0b'
+        });
+        return;
+    }
+    localStorage.setItem('setting_max_shift_jam', jam);
+    // Update tampilan "Aktif Sekarang"
+    const labelAktif = document.getElementById('label-max-shift-aktif');
+    const labelMs    = document.getElementById('label-max-shift-ms');
+    if (labelAktif) labelAktif.textContent = jam + ' jam';
+    if (labelMs)    labelMs.textContent    = '= ' + (jam * 3600000).toLocaleString('id-ID') + ' ms';
+    Swal.fire({
+        icon: 'success',
+        title: 'Tersimpan!',
+        html: `Batas durasi shift diubah ke <b>${jam} jam</b>.<br><small class="text-muted">Berlaku mulai sesi berikutnya.</small>`,
+        timer: 2000,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end'
+    });
+}
+
+function resetMaxShift() {
+    localStorage.removeItem('setting_max_shift_jam');
+    const input = document.getElementById('input-max-shift-jam');
+    if (input) input.value = 16;
+    previewMaxShift(16);
+    Swal.fire({
+        icon: 'info',
+        title: 'Reset ke Default',
+        text: 'Batas durasi shift dikembalikan ke 16 jam.',
+        timer: 2000,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end'
+    });
+}
+
+function initMaxShiftUI() {
+    const jam   = getMaxShiftJam();
+    const input = document.getElementById('input-max-shift-jam');
+    if (input) input.value = jam;
+    previewMaxShift(jam);
+}
+
 function renderShiftMgmt() {
     const shifts = DATA.shifts || [];
     const grid = document.getElementById('grid-shift-mgmt');
     if (!grid) return;
+
+    // Inisialisasi UI pengaturan max shift
+    initMaxShiftUI();
 
     const setEl = (id, val) => {
         const el = document.getElementById(id);
@@ -7037,8 +7912,28 @@ async function showClosingModal() {
     const shiftStart   = localStorage.getItem('shift_jam_start') || '-';
     let   waktuAbsen   = localStorage.getItem('shift_start_iso');
 
+    const now = new Date();
+    // ── Durasi shift maksimum: baca dari pengaturan (localStorage), default 16 jam
+    //    Covers: shift normal (6-8j), shift malam lintas hari (23:00-07:00 = 8j)
+    //    + buffer, tanpa menangkap sesi dari hari-hari sebelumnya
+    const MAX_SHIFT_MS = getMaxShiftMs();
+
+    // ── [FIX 1] Validasi waktuAbsen: buang jika stale (> MAX_SHIFT_MS lalu) atau di masa depan
+    if (waktuAbsen) {
+        const wa = new Date(waktuAbsen);
+        const elapsed = now - wa; // ms sejak absen
+        if (isNaN(elapsed) || elapsed < 0 || elapsed > 24 * 3600 * 1000) {
+            console.warn('[Closing] shift_start_iso di luar rentang 24j (elapsed=' + (elapsed/3600000).toFixed(1) + 'j), di-reset');
+            waktuAbsen = null;
+            localStorage.removeItem('shift_start_iso');
+        }
+    }
+
+    // ── [FIX 2] Fallback: awal hari ini (midnight) — ambil semua transaksi hari ini
     if (!waktuAbsen) {
-        waktuAbsen = new Date(Date.now() - 12*60*60*1000).toISOString(); // fallback
+        const todayStr = now.toLocaleDateString('en-CA');
+        waktuAbsen = new Date(todayStr + 'T00:00:00').toISOString();
+        console.warn('[Closing] shift_start_iso kosong, fallback ke midnight:', waktuAbsen);
     }
 
     Swal.fire({ 
@@ -7063,56 +7958,79 @@ async function showClosingModal() {
         const d = res.data || {};
 
         // ── Variabel dasar ──
-        const wa   = new Date(waktuAbsen);
-        const role = (localStorage.getItem('user_role') || 'Kasir').toLowerCase();
+        const wa      = new Date(waktuAbsen);
+        const waMs    = wa.getTime();
+        // Batas atas window shift = sekarang (pastikan semua transaksi terhitung)
+        const waCeilMs = now.getTime();
+        const role    = (localStorage.getItem('user_role') || 'Kasir').toLowerCase();
         const METODE_VALID = ['tunai', 'qris', 'transfer'];
 
-        // [FIX] Hitung penjualan tunai & QRIS langsung dari DATA.history (lokal)
-        // agar tidak bergantung pada d.cash/d.tunai dari server yang bisa kosong/0
+        // Helper matchCabang: SAMA dengan getFilteredHistoryByCabang
+        // cek field Cabang ATAU ID_Transaksi mengandung nama cabang
+        const _matchCab = (item, idField) => {
+            if (!activeCabang) return true;
+            const cab = (item.Cabang || item.cabang || '').toString();
+            const id  = (item[idField] || item[idField.toLowerCase()] || '').toString();
+            return cab === activeCabang || id.includes(activeCabang);
+        };
+        // Helper matchKasir: jika field Kasir kosong di data lama, tetap terima
+        const _matchKasir = (ksr) => {
+            if (!userNama || !ksr) return true;
+            return ksr.toLowerCase() === userNama.toLowerCase();
+        };
+
+        // ── historyShift: filter by cabang (robust) + kasir + window waktu shift ──
         const historyShift = (DATA.history || []).filter(h => {
-            const ts        = h.Timestamp || h.timestamp || h.Waktu || h.waktu;
-            const metode    = (h.Metode_Bayar || h.metode_bayar || '').toString().trim().toLowerCase();
-            const total     = Number(h.Total_Harga || h.total_harga || 0);
-            const cab       = (h.Cabang || h.cabang || '').toString();
-            const kasirTrx  = (h.Kasir || h.kasir || '').toString().trim();
-            const matchCabang = !activeCabang || cab === activeCabang;
-            if (!ts || !METODE_VALID.includes(metode) || total <= 0 || !matchCabang) return false;
-            if (role === 'admin' || role === 'owner') {
-                return kasirTrx.toLowerCase() === userNama.toLowerCase() && new Date(ts) >= wa;
-            }
-            return new Date(ts) >= wa;
+            const ts       = h.Timestamp || h.timestamp || h.Waktu || h.waktu;
+            const metode   = (h.Metode_Bayar || h.metode_bayar || '').toString().trim().toLowerCase();
+            const total    = Number(h.Total_Harga || h.total_harga || 0);
+            const kasirTrx = (h.Kasir || h.kasir || '').toString().trim();
+            if (!ts || !METODE_VALID.includes(metode) || total <= 0) return false;
+            if (!_matchCab(h, 'ID_Transaksi')) return false;
+            const tsMs = new Date(ts).getTime();
+            if (isNaN(tsMs)) return false;
+            if (tsMs < waMs || tsMs > waCeilMs) return false;
+            return _matchKasir(kasirTrx);
         });
 
         const totalTransaksiTerbayar = historyShift.length;
 
-        // Penjualan Tunai dari DATA.history shift ini
-        const penjualanTunaiLokal = historyShift
+        // Penjualan Tunai shift ini (hanya dari historyShift yang sudah difilter by kasir + window)
+        const penjualanTunai = historyShift
             .filter(h => (h.Metode_Bayar || h.metode_bayar || '').toString().trim().toLowerCase() === 'tunai')
             .reduce((s, h) => s + Number(h.Total_Harga || h.total_harga || 0), 0);
 
-        // Penjualan QRIS/Transfer dari DATA.history shift ini
-        const penjualanQrisLokal = historyShift
+        // Penjualan QRIS/Transfer shift ini
+        const penjualanQris = historyShift
             .filter(h => ['qris', 'transfer'].includes((h.Metode_Bayar || h.metode_bayar || '').toString().trim().toLowerCase()))
             .reduce((s, h) => s + Number(h.Total_Harga || h.total_harga || 0), 0);
 
-        // Gunakan nilai lokal; fallback ke server jika lokal = 0 dan server punya data
-        const serverTunai = parseFloat(d.cash || d.tunai || 0);
-        const serverQris  = parseFloat(d.qris || d.totalQris || 0);
-        const penjualanTunai = penjualanTunaiLokal > 0 ? penjualanTunaiLokal : serverTunai;
-        const penjualanQris  = penjualanQrisLokal  > 0 ? penjualanQrisLokal  : serverQris;
+        // ── [FIX 4] Tidak fallback ke server untuk penjualan ──
+        // d.tunai/d.cash dari server tidak filter by kasir → berbahaya
+        // Data lokal (sudah difilter by kasir + window) adalah sumber kebenaran tunggal
+        console.log('[Closing] kasir:', userNama, '| wa:', wa.toLocaleString('id-ID'));
+        console.log('[Closing] window shift:', wa.toLocaleString('id-ID'), '→', new Date(waCeilMs).toLocaleString('id-ID'));
+        console.log('[Closing] transaksi ditemukan:', totalTransaksiTerbayar, '| tunai:', penjualanTunai, '| qris:', penjualanQris);
 
-        const kasKeluar = parseFloat(d.totalKeluar || d.kas_keluar || 0);
+        // ── kasKeluar: DATA.expenses, filter by cabang (robust) + kasir + window shift ──
+        const kasKeluar = (DATA.expenses || []).filter(m => {
+            const ts     = m.Timestamp || m.timestamp || m.Waktu || m.waktu;
+            const kasirM = (m.Kasir || m.kasir || '').toString().trim();
+            if (!ts || !_matchCab(m, 'ID')) return false;
+            const tsMs = new Date(ts).getTime();
+            if (isNaN(tsMs) || tsMs < waMs || tsMs > waCeilMs) return false;
+            return _matchKasir(kasirM);
+        }).reduce((s, m) => s + parseFloat(m.Jumlah || m.jumlah || m.Nominal || m.nominal || 0), 0);
 
-        console.log('[Closing] Tunai lokal:', penjualanTunaiLokal, '| server:', serverTunai, '| dipakai:', penjualanTunai);
-        console.log('[Closing] QRIS  lokal:', penjualanQrisLokal,  '| server:', serverQris,  '| dipakai:', penjualanQris);
-        console.log('[Closing] Jumlah transaksi shift:', totalTransaksiTerbayar);
-
+        // ── kasMasukShift: DATA.modal tipe 'masuk', filter by cabang (robust) + kasir + window shift ──
         const kasMasukShift = (DATA.modal || []).filter(m => {
-            const ts   = m.Timestamp || m.timestamp || m.Waktu || m.waktu;
-            const tipe = (m.Tipe || m.tipe || '').toLowerCase();
-            const cab  = (m.Cabang || m.cabang || '').toLowerCase();
-            const matchCabang = !activeCabang || cab === activeCabang.toLowerCase();
-            return ts && new Date(ts) >= wa && tipe === 'masuk' && matchCabang;
+            const ts     = m.Timestamp || m.timestamp || m.Waktu || m.waktu;
+            const tipe   = (m.Tipe || m.tipe || '').toLowerCase();
+            const kasirM = (m.Kasir || m.kasir || '').toString().trim();
+            if (!ts || tipe !== 'masuk' || !_matchCab(m, 'ID')) return false;
+            const tsMs = new Date(ts).getTime();
+            if (isNaN(tsMs) || tsMs < waMs || tsMs > waCeilMs) return false;
+            return _matchKasir(kasirM);
         }).reduce((s, m) => s + parseFloat(m.Jumlah || m.jumlah || m.Nominal || m.nominal || 0), 0);
 
         // ── Turunan sesuai aturan keuangan ──
@@ -7120,16 +8038,22 @@ async function showClosingModal() {
         const salesToday = penjualanTunai + penjualanQris;
 
         // Saldo Fisik Tunai = Modal Awal + Penjualan Tunai (shift) + Kas Masuk Manual (shift)
-        const saldoFisikTunai = modalAwal + penjualanTunai + kasMasukShift;
+        const saldoFisikTunai = modalAwal + penjualanTunai + kasMasukShift - kasKeluar;
 
         // Kas Masuk Hari Ini = Kas Masuk non-penjualan (input manual)
         const kasMasukHariIni = kasMasukShift;
 
         // Saldo Akhir Laci = Saldo Fisik Tunai − Pengeluaran (Kas Keluar)
-        const saldoAkhir = saldoFisikTunai - kasKeluar;
+        const saldoAkhir = saldoFisikTunai;
+
+        // ── [FIX 7] totalDiskon: hitung dari historyShift (sudah difilter by kasir + window)
+        //    d.totalDiskon dari server tidak filter by kasir
+        const totalDiskonShift = historyShift
+            .reduce((s, h) => s + Number(h.Diskon || h.diskon || h.Total_Diskon || h.total_diskon || 0), 0);
 
         console.log('[Closing] Saldo Fisik Tunai:', { modalAwal, penjualanTunai, kasMasukShift, saldoFisikTunai });
         console.log('[Closing] Saldo Akhir Laci :', { saldoFisikTunai, kasKeluar, saldoAkhir });
+        console.log('[Closing] totalDiskon (lokal, by kasir):', totalDiskonShift);
 
         Swal.close();
 
@@ -7181,33 +8105,89 @@ async function showClosingModal() {
                         <strong style="color:#1d4ed8;font-size:13px">Rp ${salesToday.toLocaleString('id-ID')}</strong>
                     </div>
 
-                    <!-- 🏧 Saldo Fisik Tunai — highlight hijau -->
-                    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;margin:4px 0 2px;background:#f0fdf4;border-radius:10px;border-left:3px solid #10b981">
-                        <span style="color:#166534;font-size:13px;font-weight:700">🏧 Saldo Fisik Tunai</span>
-                        <strong style="color:#166534;font-size:13px">Rp ${saldoFisikTunai.toLocaleString('id-ID')}</strong>
-                    </div>
-                    <div style="font-size:10px;color:#94a3b8;margin:0 0 6px 12px">Modal Awal + Penjualan Tunai + Kas Masuk</div>
-
-                    <!-- − Pengeluaran (Kas Keluar) -->
-                    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
+                    <!-- − Pengeluaran (Kas Keluar) — tampil di sini sebelum saldo fisik -->
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f1f5f9">
                         <span style="color:#ef4444;font-size:13px">− Pengeluaran (Kas Keluar)</span>
                         <strong style="color:#ef4444;font-size:13px">Rp ${kasKeluar.toLocaleString('id-ID')}</strong>
                     </div>
+
+                    <!-- 🏧 Saldo Fisik Laci — highlight hijau -->
+                    <!-- = Modal Awal + Penjualan Tunai + Kas Masuk Manual − Pengeluaran -->
+                    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;margin:6px 0 2px;background:#f0fdf4;border-radius:10px;border-left:3px solid #10b981">
+                        <span style="color:#166534;font-size:13px;font-weight:700">🏧 Saldo Fisik Laci</span>
+                        <strong style="color:#166534;font-size:13px">Rp ${saldoFisikTunai.toLocaleString('id-ID')}</strong>
+                    </div>
+                    <div style="font-size:10px;color:#94a3b8;margin:0 0 4px 12px">Modal Awal + Tunai + Kas Masuk − Pengeluaran</div>
 
                 </div>
 
                 <!-- SALDO AKHIR LACI — box kuning -->
                 <div style="background:#fefce8;border:1px solid #fde68a;border-radius:16px;padding:20px;text-align:center">
                     <div style="font-size:11px;font-weight:700;color:#854d0e;letter-spacing:.6px;text-transform:uppercase;margin-bottom:2px">💵 SALDO AKHIR LACI (EXPECTED)</div>
-                    <div style="font-size:11px;color:#a16207;margin-bottom:10px">Saldo Fisik Tunai − Pengeluaran</div>
+                    <div style="font-size:11px;color:#a16207;margin-bottom:10px">= Modal Awal + Tunai + Kas Masuk − Pengeluaran</div>
                     <div style="font-size:28px;font-weight:800;color:#854d0e">Rp ${saldoAkhir.toLocaleString('id-ID')}</div>
-                    <div style="font-size:11px;color:#a16207;margin-top:6px">Kas Masuk Manual: Rp ${kasMasukShift.toLocaleString('id-ID')}</div>
-                </div>`,
+                    
+                </div>
+
+                ${role === 'admin' ? `
+                <!-- ═══ RINGKASAN SELURUH KASIR (khusus Admin) ═══ -->
+                <div style="margin-top:14px;border-top:2px dashed #e2e8f0;padding-top:12px">
+                    <div style="font-size:11px;font-weight:800;color:#7c3aed;letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+                        <span style="width:18px;height:18px;background:#7c3aed;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:white">👥</span>
+                        Ringkasan Seluruh Kasir — ${activeCabang}
+                    </div>
+                    <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:12px;padding:12px 14px;text-align:left">
+                        ${(() => {
+                            const allPaid = (DATA.history || []).filter(h => {
+                                const ts  = h.Timestamp || h.timestamp || h.Waktu || h.waktu;
+                                const met = (h.Metode_Bayar || h.metode_bayar || '').toString().trim().toLowerCase();
+                                const tot = Number(h.Total_Harga || h.total_harga || 0);
+                                const cab = (h.Cabang || h.cabang || '').toString();
+                                const matchCab = !activeCabang || cab === activeCabang || (h.ID_Transaksi||h.id_transaksi||'').toString().includes(activeCabang);
+                                if (!ts || !['tunai','qris','transfer'].includes(met) || tot <= 0 || !matchCab) return false;
+                                const tsMs2 = new Date(ts).getTime();
+                                return !isNaN(tsMs2) && tsMs2 >= waMs && tsMs2 <= waCeilMs;
+                            });
+                            const byKasir = {};
+                            allPaid.forEach(h => {
+                                const k   = (h.Kasir || h.kasir || '—').toString().trim();
+                                const tot = Number(h.Total_Harga || h.total_harga || 0);
+                                const met = (h.Metode_Bayar || h.metode_bayar || '').toString().trim().toLowerCase();
+                                if (!byKasir[k]) byKasir[k] = { trx: 0, omzet: 0, tunai: 0, qris: 0 };
+                                byKasir[k].trx++;
+                                byKasir[k].omzet += tot;
+                                if (met === 'tunai') byKasir[k].tunai += tot;
+                                else byKasir[k].qris += tot;
+                            });
+                            const entries = Object.entries(byKasir).sort((a,b) => b[1].omzet - a[1].omzet);
+                            if (entries.length === 0) return '<div style="color:#94a3b8;font-size:12px;text-align:center">Tidak ada transaksi kasir lain dalam window shift ini</div>';
+                            const colors2 = ['#7c3aed','#3b82f6','#10b981','#f59e0b','#ef4444','#06b6d4'];
+                            let html = entries.map(([nama, d], idx) => {
+                                const col = colors2[idx % colors2.length];
+                                const isMe = nama.toLowerCase() === userNama.toLowerCase();
+                                return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f3e8ff${isMe ? ';background:#faf5ff;margin:0 -14px;padding:5px 14px;border-radius:0' : ''}">`
+                                + `<div style="width:28px;height:28px;border-radius:50%;background:${col};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px;flex-shrink:0">${nama.charAt(0).toUpperCase()}</div>`
+                                + `<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nama}${isMe ? ' <span style="font-size:9px;background:#7c3aed;color:white;border-radius:4px;padding:1px 5px">Anda</span>' : ''}</div>`
+                                + `<div style="font-size:10px;color:#64748b">${d.trx} transaksi</div></div>`
+                                + `<div style="text-align:right"><div style="font-size:12px;font-weight:700;color:${col}">Rp ${d.omzet.toLocaleString('id-ID')}</div>`
+                                + `<div style="font-size:9px;color:#94a3b8">T: ${d.tunai.toLocaleString('id-ID')} | Q: ${d.qris.toLocaleString('id-ID')}</div></div></div>`;
+                            }).join('');
+                            const gTotal = entries.reduce((s,[,d]) => ({ trx: s.trx+d.trx, omzet: s.omzet+d.omzet, tunai: s.tunai+d.tunai, qris: s.qris+d.qris }), { trx:0, omzet:0, tunai:0, qris:0 });
+                            html += `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0 0;margin-top:4px;font-weight:800;font-size:12px;color:#6d28d9">`
+                                  + `<span>GRAND TOTAL (\${entries.length} kasir, \${gTotal.trx} trx)</span>`
+                                  + `<span>Rp \${gTotal.omzet.toLocaleString('id-ID')}</span></div>`;
+                            return html;
+                        })()}
+                    </div>
+                </div>` : ''}`,
             confirmButtonText: '✅ Simpan & Tutup Shift',
             showCancelButton: true,
             cancelButtonText: 'Batal',
             confirmButtonColor: '#10b981'
         });
+
+        // Verifikasi konsistensi: saldoAkhir = saldoFisikTunai = modalAwal + penjualanTunai + kasMasukShift - kasKeluar
+        console.log('[Closing] ✅ Saldo Akhir Laci:', saldoAkhir.toLocaleString('id-ID'));
 
         if (result.isConfirmed) {
             loading(true);
@@ -7230,7 +8210,7 @@ async function showClosingModal() {
                     sales_today: salesToday,
                     saldo_fisik_tunai: saldoFisikTunai,
                     count: totalTransaksiTerbayar,
-                    total_diskon: parseFloat(d.totalDiskon || 0),
+                    total_diskon: totalDiskonShift,
                     saldo_akhir: saldoAkhir
                 })
             });
@@ -7248,7 +8228,7 @@ async function showClosingModal() {
             });
 
             // Snapshot data untuk struk (ambil sebelum localStorage dibersihkan)
-            const struкData = {
+            const strukData = {
                 cabang: activeCabang,
                 kasir: userNama,
                 shiftNama,
@@ -7262,7 +8242,7 @@ async function showClosingModal() {
                 salesToday,
                 saldoFisikTunai,
                 totalTransaksi: totalTransaksiTerbayar,
-                totalDiskon: parseFloat(d.totalDiskon || 0),
+                totalDiskon: totalDiskonShift,
                 saldoAkhir
             };
 
@@ -7316,7 +8296,7 @@ async function showClosingModal() {
             });
 
             if (konfirmasiCetak.isConfirmed) {
-                printStrukClosing(struкData);
+                printStrukClosing(strukData);
                 // Beri jeda agar print dialog muncul duluan baru logout
                 setTimeout(() => logout(), 1500);
             } else {
@@ -7490,6 +8470,9 @@ function bukaKasir(no, st) {
 
     document.getElementById('view-meja').style.display = 'none';
     document.getElementById('view-kasir').style.display = 'block';
+    AKTIF_KATEGORI = '';
+    renderKategoriPills();
+    renderProduk();
     updateCartDisplay();
 }
  
@@ -7542,6 +8525,33 @@ function renderRekapShiftTable(data) {
     const sorted = [...data].sort((a, b) => 
         new Date(b.Timestamp || b.timestamp || 0) - new Date(a.Timestamp || a.timestamp || 0)
     );
+
+    // Tampilkan/sembunyikan tfoot total (khusus admin)
+    const role2 = (localStorage.getItem('user_role') || 'kasir').toLowerCase();
+    const tfoot = document.getElementById('rekap-shift-tfoot');
+    if (tfoot) {
+        if (role2 === 'admin' && data.length > 0) {
+            const totModal  = data.reduce((s, r) => s + Number(r.Modal_Awal  || r.modal_awal  || 0), 0);
+            const totTunai  = data.reduce((s, r) => s + Number(r.Tunai       || r.tunai       || 0), 0);
+            const totQris   = data.reduce((s, r) => s + Number(r.QRIS        || r.qris        || 0), 0);
+            const totTrx    = data.reduce((s, r) => s + Number(r.Total_Transaksi || r.total_transaksi || r.count || 0), 0);
+            const totDiskon = data.reduce((s, r) => s + Number(r.Total_Diskon || r.total_diskon || 0), 0);
+            const totKeluar = data.reduce((s, r) => s + Number(r.Keluar      || r.keluar      || 0), 0);
+            const totSaldo  = data.reduce((s, r) => s + Number(r.Saldo_Akhir || r.saldo_akhir || 0), 0);
+            const f = (n) => 'Rp ' + n.toLocaleString('id-ID');
+            const setF = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+            setF('rekap-foot-modal',  f(totModal));
+            setF('rekap-foot-tunai',  f(totTunai));
+            setF('rekap-foot-qris',   f(totQris));
+            setF('rekap-foot-trx',    totTrx + ' kali');
+            setF('rekap-foot-diskon', '-Rp ' + totDiskon.toLocaleString('id-ID'));
+            setF('rekap-foot-keluar', '-Rp ' + totKeluar.toLocaleString('id-ID'));
+            setF('rekap-foot-saldo',  f(totSaldo));
+            tfoot.style.display = '';
+        } else {
+            tfoot.style.display = 'none';
+        }
+    }
 
     tbody.innerHTML = sorted.map(r => {
         const ts = r.Timestamp || r.timestamp;
