@@ -9593,17 +9593,18 @@ async function prosesBayarFinal() {
         // [V24 FIX] Payload saveTransaction — kirim dengan timeout lebih panjang (45 detik)
         // dan NO retry (retry bisa menyebabkan duplikasi data di sheet)
         const saveTrxPayload = {
-            action:      'saveTransaction',
-            table:       String(AKTIF_MEJA),
-            customer:    customerName,
-            item_detail: `[${labelMeja}] ${detailTeks}`,
-            items:       JSON.stringify(CART),
-            diskon:      window.CURRENT_DISKON,
-            total:       window.CURRENT_TOTAL,
-            status:      'Kosong',
-            kasir:       KASIR,
-            metode:      met,
-            cabang:      activeCabang
+            action:         'saveTransaction',
+            client_trx_id:  localTrxId,  // [V25 FIX] Kirim ke backend sbg idempotency key
+            table:          String(AKTIF_MEJA),
+            customer:       customerName,
+            item_detail:    `[${labelMeja}] ${detailTeks}`,
+            items:          JSON.stringify(CART),
+            diskon:         window.CURRENT_DISKON,
+            total:          window.CURRENT_TOTAL,
+            status:         'Kosong',
+            kasir:          KASIR,
+            metode:         met,
+            cabang:         activeCabang
         };
         console.log('[V24] saveTransaction payload:', JSON.stringify(saveTrxPayload));
 
@@ -9799,8 +9800,12 @@ async function prosesSplitBill() {
         const labelMeja      = document.getElementById('label-meja')?.innerText || "TA";
         const currentSplitTotal = TOTAL_SPLIT;
 
+        const splitClientId = (typeof generateOrderNumber === 'function')
+            ? generateOrderNumber()
+            : `SPLIT-${Date.now()}-${activeCabang || 'X'}`;
         const splitPayload = {
             action:               'splitBill',
+            client_trx_id:        splitClientId,  // [V25 FIX] Idempotency key
             table:                String(AKTIF_MEJA),
             customer:             document.getElementById('cust-name')?.value || "Guest",
             paid_item_names:      `[SPLIT ${labelMeja}] ${paidItemsArray.map(i => i.nama).join(', ')}`,
