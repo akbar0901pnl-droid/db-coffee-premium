@@ -5155,10 +5155,36 @@ async function refreshData() {
             const serverIds = new Set(deduped.map(h =>
                 (h.ID_Transaksi || h.id_transaksi || '').toString().trim()
             ));
+            // [V26 FIX] Composite key server untuk mendeteksi optimistic yang sudah ada
+            // di server meskipun ID-nya berbeda (mis. optimistic pakai DB-xxx, server pakai TRX-xxx)
+            const serverCompositeKeys = new Set(deduped.map(h => {
+                const ts    = h.Timestamp || h.timestamp || h.Waktu || h.waktu || '';
+                const total = Number(h.Total_Harga || h.total_harga || 0);
+                const ksr   = (h.Kasir || h.kasir || '').toString().trim().toLowerCase();
+                const tgl   = ts ? new Date(ts).toLocaleDateString('en-CA') : '';
+                const hh    = ts ? new Date(ts).getHours() : '';
+                const mm    = ts ? new Date(ts).getMinutes() : '';
+                return `${tgl}|${hh}:${mm}|${total}|${ksr}`;
+            }));
             const localOptimistic = (DATA.history || []).filter(h => {
                 const id = (h.ID_Transaksi || h.id_transaksi || '').toString().trim();
-                return id && !serverIds.has(id) && h._optimistic === true;
+                if (!id || !h._optimistic) return false;
+                // Buang jika ID sudah ada di server
+                if (serverIds.has(id)) return false;
+                // Buang juga jika composite key (waktu+total+kasir) sudah ada di server
+                const ts    = h.Timestamp || h.timestamp || h.Waktu || h.waktu || '';
+                const total = Number(h.Total_Harga || h.total_harga || 0);
+                const ksr   = (h.Kasir || h.kasir || '').toString().trim().toLowerCase();
+                const tgl   = ts ? new Date(ts).toLocaleDateString('en-CA') : '';
+                const hh    = ts ? new Date(ts).getHours() : '';
+                const mm    = ts ? new Date(ts).getMinutes() : '';
+                const compKey = `${tgl}|${hh}:${mm}|${total}|${ksr}`;
+                if (serverCompositeKeys.has(compKey)) return false;
+                return true;
             });
+            if (localOptimistic.length < (DATA.history||[]).filter(h=>h._optimistic).length) {
+                console.log(`[V26] Optimistic merge: ${(DATA.history||[]).filter(h=>h._optimistic).length} optimistic → ${localOptimistic.length} masih pending (sisanya sudah confirmed di server)`);
+            }
             // Gabung: optimistic records di depan (terbaru) + server data (sudah deduped)
             DATA.history = [...localOptimistic, ...deduped];
         } else if (!DATA.history || DATA.history.length === 0) {
@@ -5373,7 +5399,38 @@ function updateDashboard() {
     // ==================== FILTER TRANSAKSI TERBAYAR ====================
     // Hanya transaksi dengan metode valid (bukan pending/reset) dan total > 0
     const METODE_BAYAR_VALID = ['Tunai', 'QRIS', 'Transfer'];
-    const paidHistory = filteredHistoryFinal.filter(h => {
+
+    // [V26 FIX] Deduplikasi filteredHistoryFinal sebelum hitung paidHistory
+    // Cegah double counting jika optimistic record belum dibuang dari DATA.history
+    const _dedupHistory = (() => {
+        const seenDedupIds   = new Set();
+        const seenDedupComps = new Set();
+        // Urutkan: non-optimistic dulu (prioritas server record)
+        const sorted = [...filteredHistoryFinal].sort((a, b) => {
+            if (a._optimistic && !b._optimistic) return 1;
+            if (!a._optimistic && b._optimistic) return -1;
+            return 0;
+        });
+        return sorted.filter(h => {
+            const id = (h.ID_Transaksi || h.id_transaksi || '').toString().trim();
+            if (id) {
+                if (seenDedupIds.has(id)) return false;
+                seenDedupIds.add(id);
+            }
+            const ts    = h.Timestamp || h.timestamp || h.Waktu || h.waktu || '';
+            const total = Number(h.Total_Harga || h.total_harga || 0);
+            const ksr   = (h.Kasir || h.kasir || '').toString().trim().toLowerCase();
+            const tgl   = ts ? new Date(ts).toLocaleDateString('en-CA') : '';
+            const hh    = ts ? new Date(ts).getHours() : '';
+            const mm    = ts ? new Date(ts).getMinutes() : '';
+            const compKey = `${tgl}|${hh}:${mm}|${total}|${ksr}`;
+            if (compKey !== '||0|' && seenDedupComps.has(compKey)) return false;
+            if (compKey !== '||0|') seenDedupComps.add(compKey);
+            return true;
+        });
+    })();
+
+    const paidHistory = _dedupHistory.filter(h => {
         const metode = (h.Metode_Bayar || h.metode_bayar || '').toString().trim();
         const total  = Number(h.Total_Harga || h.total_harga || 0);
         return METODE_BAYAR_VALID.includes(metode) && total > 0;
@@ -5800,8 +5857,35 @@ function renderRecentOrders() {
         filtered = getFilteredHistoryByCabang(filtered);
     }
 
+    // [V26 FIX] Deduplikasi by ID sebelum render — cegah double counting
+    // jika optimistic record belum sempat dibuang dari DATA.history
+    const seenIds = new Set();
+    const seenCompositeKeys = new Set();
+    filtered = filtered.filter(h => {
+        const id = (h.ID_Transaksi || h.id_transaksi || '').toString().trim();
+        // Deduplicate by ID (prioritaskan non-optimistic jika ada)
+        if (id) {
+            if (seenIds.has(id)) return false;
+            seenIds.add(id);
+        }
+        // Deduplicate by composite key: waktu(menit)+total+kasir
+        const ts    = h.Timestamp || h.timestamp || h.Waktu || h.waktu || '';
+        const total = Number(h.Total_Harga || h.total_harga || 0);
+        const ksr   = (h.Kasir || h.kasir || '').toString().trim().toLowerCase();
+        const tgl   = ts ? new Date(ts).toLocaleDateString('en-CA') : '';
+        const hh    = ts ? new Date(ts).getHours() : '';
+        const mm    = ts ? new Date(ts).getMinutes() : '';
+        const compKey = `${tgl}|${hh}:${mm}|${total}|${ksr}`;
+        if (compKey !== '||0|' && seenCompositeKeys.has(compKey)) return false;
+        if (compKey !== '||0|') seenCompositeKeys.add(compKey);
+        return true;
+    });
+
     // Sort terbaru di atas
     filtered.sort((a, b) => {
+        // Non-optimistic (server confirmed) lebih prioritas daripada optimistic
+        if (a._optimistic && !b._optimistic) return 1;
+        if (!a._optimistic && b._optimistic) return -1;
         const ta = new Date(a.Timestamp || a.timestamp || 0);
         const tb = new Date(b.Timestamp || b.timestamp || 0);
         return tb - ta;
