@@ -5100,17 +5100,67 @@ async function refreshData() {
         // yang belum ada di server (transaksi baru yang belum di-commit GAS)
         const serverHistory = res.history || [];
         if (serverHistory.length > 0) {
+            // [V25 FIX] Deduplicate: backend kadang menggabungkan sheet Orders (DB-...)
+            // dan sheet Payments (TRX-... | CABANG) ke dalam satu array history,
+            // menyebabkan satu transaksi muncul dua kali di dashboard & total penjualan
+            // dihitung ganda. Solusi: buang record Payment (ID mengandung 'TRX-'),
+            // prioritaskan record Order (ID dengan prefix 'DB-').
+            // Jika backend HANYA punya TRX- (tidak ada DB-), tetap pertahankan TRX-.
+            const deduped = (() => {
+                // Pisahkan: DB records vs TRX records
+                const dbRecords  = serverHistory.filter(h => {
+                    const id = (h.ID_Transaksi || h.id_transaksi || '').toString().trim();
+                    return id.startsWith('DB-');
+                });
+                const trxRecords = serverHistory.filter(h => {
+                    const id = (h.ID_Transaksi || h.id_transaksi || '').toString().trim();
+                    return !id.startsWith('DB-');
+                });
+
+                if (dbRecords.length === 0) {
+                    // Tidak ada DB- records → kembalikan semua (mungkin format lama)
+                    return serverHistory;
+                }
+
+                // Ada DB- records → buang TRX- yang merupakan duplikat dari DB-
+                // Cara identifikasi: TRX- biasanya punya Timestamp/Total yang sama
+                // dengan salah satu DB- record. Gunakan composite key: tanggal+total+kasir.
+                const dbKeys = new Set(dbRecords.map(h => {
+                    const ts    = h.Timestamp || h.timestamp || h.Waktu || h.waktu || '';
+                    const total = Number(h.Total_Harga || h.total_harga || 0);
+                    const ksr   = (h.Kasir || h.kasir || '').toString().trim().toLowerCase();
+                    const tgl   = ts ? new Date(ts).toLocaleDateString('en-CA') : '';
+                    return `${tgl}|${total}|${ksr}`;
+                }));
+
+                // Filter TRX- records: buang jika key-nya ada di DB records
+                const uniqueTrx = trxRecords.filter(h => {
+                    const ts    = h.Timestamp || h.timestamp || h.Waktu || h.waktu || '';
+                    const total = Number(h.Total_Harga || h.total_harga || 0);
+                    const ksr   = (h.Kasir || h.kasir || '').toString().trim().toLowerCase();
+                    const tgl   = ts ? new Date(ts).toLocaleDateString('en-CA') : '';
+                    const key   = `${tgl}|${total}|${ksr}`;
+                    return !dbKeys.has(key); // hanya pertahankan jika benar-benar beda
+                });
+
+                const result = [...dbRecords, ...uniqueTrx];
+                if (result.length < serverHistory.length) {
+                    console.log(`[V25] Dedup history: ${serverHistory.length} → ${result.length} records (${serverHistory.length - result.length} duplikat Payment dibuang)`);
+                }
+                return result;
+            })();
+
             // Cek apakah ada optimistic record lokal yang BELUM masuk server
             // (identifikasi dengan ID yang tidak ada di serverHistory)
-            const serverIds = new Set(serverHistory.map(h =>
+            const serverIds = new Set(deduped.map(h =>
                 (h.ID_Transaksi || h.id_transaksi || '').toString().trim()
             ));
             const localOptimistic = (DATA.history || []).filter(h => {
                 const id = (h.ID_Transaksi || h.id_transaksi || '').toString().trim();
                 return id && !serverIds.has(id) && h._optimistic === true;
             });
-            // Gabung: optimistic records di depan (terbaru) + server data
-            DATA.history = [...localOptimistic, ...serverHistory];
+            // Gabung: optimistic records di depan (terbaru) + server data (sudah deduped)
+            DATA.history = [...localOptimistic, ...deduped];
         } else if (!DATA.history || DATA.history.length === 0) {
             DATA.history = [];
         }
