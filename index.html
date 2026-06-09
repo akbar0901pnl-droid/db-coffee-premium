@@ -3145,7 +3145,7 @@
 // GLOBAL STATE
 // =============================================================
 // [V17] API_URL dikelola oleh SettingsManager — jangan hardcode
-let API_URL = 'https://script.google.com/macros/s/AKfycbyik29uxqLCctbT_8nZ5R-AA-0kNzDjOEPpsGb8_0G0Z2RzJ49-AHV9iM6bvqdGvusq/exec';
+let API_URL = 'https://script.google.com/macros/s/AKfycbzzyHGY0jIUYAjYiEIIrEU7R7-G0rM5G6Gu56eWfwG59RvkgVAOPBf3DYygIl9z2-mA/exec';
 let DATA = { products:[], tables:[], history:[], expenses:[], modal:[], users:[], branches:[], shifts:[], absenLog:[], rekapShift:[] };
 let CART = [], AKTIF_MEJA = "", KASIR = "", TOTAL_CART = 0;
 // [V16] PaymentSession state
@@ -3171,6 +3171,7 @@ const SETTINGS_SCHEMA = {
     display_interval:   { default: 2,                                     type: 'int',    tab: 'backend' },
     qris_mode:          { default: 'static',   type: 'select',  tab: 'payment', options: ['static','dynamic'] },
     qris_image_url:     { default: '',         type: 'string',  tab: 'payment' },
+    qris_base64:        { default: '',         type: 'string',  tab: 'payment' },
     payment_gateway:    { default: 'none',     type: 'select',  tab: 'payment', options: ['none','tripay','midtrans','xendit','duitku'] },
     merchant_code:      { default: '',         type: 'string',  tab: 'payment' },
     api_key:            { default: '',         type: 'password',tab: 'payment' },
@@ -3298,6 +3299,11 @@ const SettingsManager = {
                 this._cache.qris_image_url = oldQrisUrl;
                 changed = true;
             }
+            // Migrate: drop legacy qris_file_id (Drive)
+            if (this._cache.qris_file_id !== undefined) {
+                delete this._cache.qris_file_id;
+                changed = true;
+            }
         }
         this._cache._version = SETTINGS_VERSION;
         if (changed) {
@@ -3321,6 +3327,12 @@ const SettingsManager = {
         }
     }
 };
+
+// Helper: ambil base64 QRIS, fallback ke legacy URL
+function _buildQrisUrl(base64, fallbackUrl) {
+    if (base64 && base64.trim()) return base64.trim();
+    return fallbackUrl || '';
+}
 
 function renderSettingsPage() {
     const s = SettingsManager;
@@ -3434,13 +3446,23 @@ function renderSettingsPage() {
                             </select>
                         </div>
                         <div class="col-12" id="s-qris-static-group" style="display:${s.get('qris_mode')==='static'?'block':'none'}">
-                            <label class="form-label fw-bold small text-muted">QRIS IMAGE URL (Static)</label>
-                            <div class="input-group">
-                                <input type="url" class="form-control" id="s-qris_image_url" value="${_esc(s.get('qris_image_url'))}" placeholder="https://... (URL gambar QR code merchant)">
-                                <button class="btn btn-outline-secondary" onclick="settingsPreviewQris()" type="button"><i class="bi bi-eye"></i> Preview</button>
-                            </div>
-                            <div id="s-qris-preview" class="mt-2 text-center ${s.get('qris_image_url') ? '' : 'd-none'}">
-                                <img src="${_esc(s.get('qris_image_url'))}" style="max-height:160px;border:1px solid #e2e8f0;border-radius:8px;padding:6px" onerror="this.style.display='none'">
+                            <label class="form-label fw-bold small text-muted">QRIS IMAGE (Static)</label>
+                            <div class="d-flex align-items-center gap-3 flex-wrap">
+                                <div id="s-qris-preview" class="text-center ${(s.get('qris_base64') || s.get('qris_image_url')) ? '' : 'd-none'}" style="flex:0 0 auto">
+                                    <img id="s-qris-preview-img" src="${_esc(_buildQrisUrl(s.get('qris_base64'), s.get('qris_image_url')))}" style="max-height:140px;max-width:140px;border:1px solid #e2e8f0;border-radius:8px;padding:4px" onerror="this.style.display='none'">
+                                </div>
+                                <div style="flex:1;min-width:200px">
+                                    <div class="mb-2">
+                                        <input type="file" class="form-control" id="s-qris_file_input" accept="image/png,image/jpeg,image/jpg,image/webp" onchange="settingsPreviewQrisFile(this)">
+                                        <small class="text-muted">PNG/JPG/WebP maks 2MB. Gambar disimpan sebagai Base64.</small>
+                                    </div>
+                                    <div id="s-qris-upload-status" class="small mb-2" style="display:none"></div>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <button class="btn btn-primary btn-sm fw-bold" onclick="settingsUploadQrisImage()" id="s-qris-upload-btn" style="display:none"><i class="bi bi-image me-1"></i>Simpan Gambar</button>
+                                        ${s.get('qris_base64') ? `<button class="btn btn-outline-danger btn-sm" onclick="settingsDeleteQrisImage()"><i class="bi bi-trash me-1"></i>Hapus Gambar</button>` : ''}
+                                    </div>
+                                    ${s.get('qris_base64') ? `<div class="text-muted mt-1" style="font-size:10px">Gambar tersimpan (Base64)</div>` : ''}
+                                </div>
                             </div>
                         </div>
                         <div class="col-12" id="s-qris-dynamic-group" style="display:${s.get('qris_mode')==='dynamic'?'block':'none'}">
@@ -3925,7 +3947,8 @@ function settingsSaveAll() {
         spreadsheet_id:    _sVal('s-spreadsheet_id'),
         display_interval:  parseInt(_sVal('s-display_interval') || '2') || 2,
         qris_mode:         _sVal('s-qris_mode'),
-        qris_image_url:    _sVal('s-qris_image_url'),
+        qris_image_url:    SettingsManager.get('qris_image_url'), // preserve legacy fallback
+        qris_base64:       SettingsManager.get('qris_base64'),        // only changed via upload/delete
         payment_gateway:   _sVal('s-payment_gateway'),
         merchant_code:     _sVal('s-merchant_code'),
         api_key:           _sVal('s-api_key'),
@@ -3977,6 +4000,7 @@ function settingsSaveAll() {
         if (newSettings.qris_mode === 'static' && newSettings.qris_image_url) {
             localStorage.setItem('qris_url_static', newSettings.qris_image_url);
         }
+        // Base64 tidak perlu di-sync ke localStorage (sudah di SettingsManager)
         // [V21] Apply favicon if branding favicon was saved
         brandingApplyFavicon(newSettings.favicon_image || SettingsManager.get('favicon_image'));
         Swal.fire({ icon: 'success', title: 'Tersimpan!', text: 'Pengaturan berhasil disimpan dan langsung aktif.', timer: 2000, showConfirmButton: false, position: 'top-end', toast: true });
@@ -4069,14 +4093,99 @@ function settingsPreviewLogo() {
     wrap.querySelector('img').src = url;
 }
 
-function settingsPreviewQris() {
-    const url  = document.getElementById('s-qris_image_url')?.value;
-    const wrap = document.getElementById('s-qris-preview');
-    if (!wrap) return;
-    if (!url) { wrap.classList.add('d-none'); return; }
-    wrap.classList.remove('d-none');
-    wrap.querySelector('img').src = url;
-    wrap.querySelector('img').style.display = 'block';
+function settingsPreviewQrisFile(input) {
+    const file = input?.files?.[0];
+    const uploadBtn = document.getElementById('s-qris-upload-btn');
+    const statusEl  = document.getElementById('s-qris-upload-status');
+    const previewWrap = document.getElementById('s-qris-preview');
+    const previewImg  = document.getElementById('s-qris-preview-img');
+    if (!file) {
+        if (uploadBtn) uploadBtn.style.display = 'none';
+        return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+        Swal.fire('File Terlalu Besar', 'Ukuran gambar maksimal 2MB.', 'warning');
+        input.value = '';
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        if (previewImg) { previewImg.src = e.target.result; previewImg.style.display = 'block'; }
+        if (previewWrap) previewWrap.classList.remove('d-none');
+        if (uploadBtn) uploadBtn.style.display = '';
+        if (statusEl) { statusEl.textContent = 'Siap disimpan. Klik "Simpan Gambar" untuk menyimpan.'; statusEl.className = 'small text-info mb-2'; statusEl.style.display = ''; }
+    };
+    reader.readAsDataURL(file);
+}
+
+async function settingsUploadQrisImage() {
+    const input    = document.getElementById('s-qris_file_input');
+    const statusEl = document.getElementById('s-qris-upload-status');
+    const uploadBtn = document.getElementById('s-qris-upload-btn');
+    const file = input?.files?.[0];
+    if (!file) { Swal.fire('Pilih Gambar', 'Pilih file gambar terlebih dahulu.', 'warning'); return; }
+
+    if (statusEl) { statusEl.textContent = 'Membaca gambar…'; statusEl.className = 'small text-warning mb-2'; statusEl.style.display = ''; }
+    if (uploadBtn) { uploadBtn.disabled = true; uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Menyimpan…'; }
+
+    try {
+        const base64Full = await new Promise((res, rej) => {
+            const r = new FileReader();
+            r.onload  = () => res(r.result);
+            r.onerror = () => rej(new Error('Gagal membaca file'));
+            r.readAsDataURL(file);
+        });
+
+        // Simpan base64 data-URL ke SettingsManager
+        SettingsManager.set('qris_base64', base64Full);
+        SettingsManager.set('qris_image_url', ''); // clear legacy URL
+        localStorage.removeItem('qris_url_static');
+
+        // Opsional: kirim ke backend untuk disimpan di sheet Setting
+        const apiUrl = SettingsManager.get('api_url');
+        if (apiUrl) {
+            try {
+                await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'saveQrisBase64', base64: base64Full })
+                });
+            } catch(e) { /* non-fatal */ }
+        }
+
+        if (statusEl) { statusEl.textContent = '✓ Gambar QRIS berhasil disimpan.'; statusEl.className = 'small text-success mb-2'; }
+        Swal.fire({ icon: 'success', title: 'Tersimpan!', text: 'Gambar QRIS berhasil disimpan.', timer: 2000, showConfirmButton: false, toast: true, position: 'top-end' });
+        setTimeout(() => {
+            if (typeof renderSettingsPage === 'function') renderSettingsPage();
+            const payTab = document.querySelector('[href="#stab-payment"]');
+            if (payTab) setTimeout(() => payTab.click(), 100);
+        }, 400);
+    } catch(e) {
+        if (statusEl) { statusEl.textContent = '✗ Gagal: ' + e.message; statusEl.className = 'small text-danger mb-2'; }
+        Swal.fire('Gagal', e.message, 'error');
+    } finally {
+        if (uploadBtn) { uploadBtn.disabled = false; uploadBtn.innerHTML = '<i class="bi bi-image me-1"></i>Simpan Gambar'; }
+    }
+}
+
+async function settingsDeleteQrisImage() {
+    if (!SettingsManager.get('qris_base64') && !SettingsManager.get('qris_image_url')) return;
+    const confirm = await Swal.fire({
+        icon: 'warning', title: 'Hapus Gambar QRIS?',
+        text: 'Gambar QRIS akan dihapus dan tidak bisa digunakan di pembayaran.',
+        showCancelButton: true, confirmButtonText: 'Hapus', cancelButtonText: 'Batal',
+        confirmButtonColor: '#ef4444'
+    });
+    if (!confirm.isConfirmed) return;
+    SettingsManager.set('qris_base64', '');
+    SettingsManager.set('qris_image_url', '');
+    localStorage.removeItem('qris_url_static');
+    Swal.fire({ icon:'success', title:'Dihapus', timer:1500, showConfirmButton:false, toast:true, position:'top-end' });
+    setTimeout(() => {
+        if (typeof renderSettingsPage === 'function') renderSettingsPage();
+        const payTab = document.querySelector('[href="#stab-payment"]');
+        if (payTab) setTimeout(() => payTab.click(), 100);
+    }, 300);
 }
 
 function settingsCopyDisplayUrl() {
@@ -4471,6 +4580,9 @@ function _getQrisUrl() {
         if (inputEl && inputEl.value.trim()) return inputEl.value.trim();
         return '';
     }
+    // Prioritas: Base64 → legacy qris_image_url → localStorage
+    const base64 = SettingsManager.get('qris_base64');
+    if (base64 && base64.trim()) return base64.trim();
     return SettingsManager.get('qris_image_url') || localStorage.getItem('qris_url_static') || '';
 }
 
@@ -4659,6 +4771,11 @@ function initMainApp() {
     refreshData();
     // ── AUTO-RESET HARIAN: aktifkan kembali semua shift di hari baru ──
     dailyShiftReset().catch(() => {});
+    // [V27] Periodic cleanup session expired setiap 30 menit
+    setInterval(function() {
+        fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'cleanupExpiredSessions' }) })
+            .catch(function(){});
+    }, 30 * 60 * 1000);
 }
 
 // =============================================================
@@ -5203,6 +5320,15 @@ async function refreshData() {
         // Rekap Shift: coba semua kemungkinan nama field dari backend
         DATA.rekapShift = res.rekapShift || res.rekap_shift || res.shiftClosing || res.shift_closing || res.rekap || DATA.rekapShift || [];
 
+        // Sync appSettings dari server (QRIS_BASE64)
+        if (res.appSettings && typeof res.appSettings === 'object') {
+            const srvQrisBase64 = (res.appSettings['QRIS_BASE64'] || '').toString().trim();
+            if (srvQrisBase64 && !SettingsManager.get('qris_base64')) {
+                // Server punya Base64 dan lokal belum ada → sync
+                SettingsManager.set('qris_base64', srvQrisBase64);
+            }
+        }
+
         // Rebuild cabang filter dropdown for admin
         buildCabangFilterDropdown();
 
@@ -5273,7 +5399,11 @@ function getFilteredHistoryByCabang(historyAll) {
         const el = document.getElementById('filter-cabang-dashboard');
         const selected = el ? el.value : 'Semua';
         if (selected === 'Semua') return historyAll;
+        // [FIX ADMIN DASHBOARD] Prioritas: field Cabang langsung, fallback ID_Transaksi (format lama TRX-xxx | Cabang)
         return historyAll.filter(h => {
+            const hCabang = (h.Cabang || h.cabang || '').toString().trim();
+            if (hCabang) return hCabang === selected;
+            // Fallback untuk ID format lama: "TRX-xxx | NamaCabang"
             const id = (h.ID_Transaksi || h.id_transaksi || '').toString();
             return id.includes(selected);
         });
@@ -5285,7 +5415,7 @@ function getFilteredHistoryByCabang(historyAll) {
             const hCabang = (h.Cabang || h.cabang || '').toString();
             const kasirH = (h.Kasir || h.kasir || '').toString().toLowerCase();
             // [V23 FIX] Include TakeAway by kasir
-            return id.includes(cabang) || hCabang === cabang || (myKasir3 && kasirH === myKasir3);
+            return hCabang === cabang || id.includes(cabang) || (myKasir3 && kasirH === myKasir3);
         });
     }
 }
@@ -6174,10 +6304,10 @@ function modalBayar() {
 }
 
 // [V16] Buat PaymentSession — dipanggil saat modal bayar terbuka
+// [V27] ACTIVE_SESSION_ID / ACTIVE_TRX_ID TIDAK di-null-kan di sini.
+// Keduanya hanya di-reset SETELAH seluruh proses pembayaran sukses.
 async function _v16CreateSession() {
     try {
-        ACTIVE_SESSION_ID = null;
-        ACTIVE_TRX_ID     = null;
         const res = await fetch(API_URL, {
             method: 'POST',
             body: JSON.stringify({
@@ -6189,6 +6319,8 @@ async function _v16CreateSession() {
         }).then(r => r.json());
         if (res && res.status === 'success') {
             ACTIVE_SESSION_ID = res.session_id;
+            // [V27] Simpan expires_at agar frontend bisa cek expiry lokal
+            window._SESSION_EXPIRES_AT = res.expires_at ? new Date(res.expires_at) : null;
         }
     } catch(e) {
         console.warn('[V16] createPaymentSession gagal:', e);
@@ -6261,7 +6393,7 @@ function toggleCalculator() {
             Swal.fire({
                 icon: 'warning',
                 title: 'URL QR QRIS Belum Diatur',
-                html: 'Silakan atur URL gambar QR QRIS di <b>Pengaturan Sistem → Pembayaran</b>.',
+                html: 'Silakan upload gambar QR QRIS di <b>Pengaturan Sistem → Pembayaran</b>.',
                 showCancelButton: true,
                 confirmButtonText: 'Buka Pengaturan',
                 cancelButtonText: 'Tutup'
@@ -6285,6 +6417,27 @@ async function eksekusiPembayaran() {
     if (!acquireSubmitLock('bayar')) return; // ← GUARD: tolak double-tap
     const checks = document.querySelectorAll('.split-check:checked');
     if (checks.length === 0) { releaseSubmitLock('bayar'); return Swal.fire('Peringatan','Pilih item yang akan dibayar!','warning'); }
+    // [V27] Validasi session tidak expired sebelum proses bayar
+    if (ACTIVE_SESSION_ID && window._SESSION_EXPIRES_AT) {
+        if (new Date() > window._SESSION_EXPIRES_AT) {
+            releaseSubmitLock('bayar');
+            const result = await Swal.fire({
+                icon: 'warning',
+                title: 'Sesi Pembayaran Expired',
+                text: 'Sesi sudah lebih dari 30 menit. Silakan buka ulang modal pembayaran.',
+                confirmButtonText: 'Buka Ulang',
+                showCancelButton: true,
+                cancelButtonText: 'Batal'
+            });
+            if (result.isConfirmed) {
+                // Reset dan buka ulang session
+                ACTIVE_SESSION_ID = null;
+                window._SESSION_EXPIRES_AT = null;
+                await _v16CreateSession();
+            }
+            return;
+        }
+    }
     const totalPcs = CART.reduce((acc,curr) => acc + curr.qty, 0);
     try {
         if (checks.length === totalPcs) await prosesBayarFinal();
@@ -9679,6 +9832,7 @@ async function prosesBayarFinal() {
         const saveTrxPayload = {
             action:         'saveTransaction',
             client_trx_id:  localTrxId,  // [V25 FIX] Kirim ke backend sbg idempotency key
+            session_id:     ACTIVE_SESSION_ID || undefined, // [V27] Backend validasi session masih aktif
             table:          String(AKTIF_MEJA),
             customer:       customerName,
             item_detail:    `[${labelMeja}] ${detailTeks}`,
@@ -9790,13 +9944,12 @@ async function prosesBayarFinal() {
 // [V24] Catat payment + tutup session — dijalankan PARALEL (Promise.all)
 // agar tidak blocking UI. Dipanggil sebagai fire-and-forget dari prosesBayarFinal.
 async function _v16FinalizePembayaran(idTrx, metode, nominal, cabang) {
-    const sesId = ACTIVE_SESSION_ID; // simpan sebelum di-null-kan
-    ACTIVE_SESSION_ID = null;
-    ACTIVE_TRX_ID     = null;
+    // [V27] Simpan IDs dulu, reset SETELAH seluruh finalize selesai
+    const sesId = ACTIVE_SESSION_ID;
     try {
         const tasks = [];
 
-        // Task A: link session ke transaksi
+        // Task A: update session — link trx, set status Paid, set Total_Paid
         if (sesId && idTrx) {
             tasks.push(
                 fetch(API_URL, {
@@ -9805,7 +9958,8 @@ async function _v16FinalizePembayaran(idTrx, metode, nominal, cabang) {
                         action:       'updatePaymentSession',
                         session_id:   sesId,
                         id_transaksi: idTrx,
-                        status:       'Paid'
+                        status:       'Paid',
+                        total_paid:   nominal  // [V27] update Total_Paid di session
                     })
                 }).then(r => r.json()).catch(e => ({ status: 'error', message: e.message }))
             );
@@ -9829,8 +9983,7 @@ async function _v16FinalizePembayaran(idTrx, metode, nominal, cabang) {
             );
         }
 
-        // Task C: tutup session (hanya jika belum di-update di Task A)
-        // Jika sesId ada tapi idTrx tidak ada → tetap close dengan status Paid
+        // Task C: tutup session jika sesId ada tapi idTrx tidak ada
         if (sesId && !idTrx) {
             tasks.push(
                 fetch(API_URL, {
@@ -9838,19 +9991,25 @@ async function _v16FinalizePembayaran(idTrx, metode, nominal, cabang) {
                     body: JSON.stringify({
                         action:     'closePaymentSession',
                         session_id: sesId,
-                        status:     'Paid'
+                        status:     'Paid',
+                        total_paid: nominal
                     })
                 }).then(r => r.json()).catch(e => ({ status: 'error', message: e.message }))
             );
         }
 
-        // Jalankan semua task PARALEL — total waktu = max(task) bukan sum(task)
+        // Jalankan semua task PARALEL
         const results = await Promise.all(tasks);
         results.forEach((r, i) => {
-            if (r && r.status !== 'success') console.warn('[V24] Finalize task', i, 'gagal:', r);
+            if (r && r.status !== 'success') console.warn('[V27] Finalize task', i, 'gagal:', r);
         });
     } catch(e) {
-        console.error('[V24] _v16FinalizePembayaran error:', e);
+        console.error('[V27] _v16FinalizePembayaran error:', e);
+    } finally {
+        // [V27] Reset IDs SETELAH finalize selesai (sukses atau gagal)
+        ACTIVE_SESSION_ID         = null;
+        ACTIVE_TRX_ID             = null;
+        window._SESSION_EXPIRES_AT = null;
     }
 }
 
@@ -9887,15 +10046,23 @@ async function prosesSplitBill() {
         const splitClientId = (typeof generateOrderNumber === 'function')
             ? generateOrderNumber()
             : `SPLIT-${Date.now()}-${activeCabang || 'X'}`;
+        // [FIX SPLIT DISPLAY] Update Item_JSON di session ke item yang sedang dibayar
+        // agar Customer Display hanya menampilkan item yang dipilih kasir
+        if (ACTIVE_SESSION_ID) {
+            _v16UpdateSession({ items: JSON.stringify(paidItemsArray) }).catch(() => {});
+        }
+
         const splitPayload = {
             action:               'splitBill',
             client_trx_id:        splitClientId,  // [V25 FIX] Idempotency key
+            session_id:           ACTIVE_SESSION_ID || undefined, // [V27] validasi session di backend
             table:                String(AKTIF_MEJA),
             customer:             document.getElementById('cust-name')?.value || "Guest",
             paid_item_names:      `[SPLIT ${labelMeja}] ${paidItemsArray.map(i => i.nama).join(', ')}`,
             paid_items_json:      JSON.stringify(paidItemsArray),
             diskon:               window.MODAL_CURRENT_DISCOUNT,
             amount_paid:          currentSplitTotal,
+            remaining_total:      sisaTagihan,  // [V27] sisa tagihan setelah split ini
             remaining_items_json: JSON.stringify(remainingCart),
             metode:               met,
             kasir:                KASIR,
@@ -9948,24 +10115,24 @@ async function prosesSplitBill() {
 
 // [V24] Catat partial payment + update session — dijalankan PARALEL (Promise.all)
 async function _v16RecordSplitPayment(splitTrxId, metode, nominalBayar, sisaTagihan, remainingCart, cabang) {
-    const sesId = ACTIVE_SESSION_ID; // simpan sebelum di-null-kan
+    // [V27] simpan sesId, reset SETELAH task selesai (hanya jika fully paid)
+    const sesId       = ACTIVE_SESSION_ID;
     const isFullyPaid = remainingCart.length === 0;
-    if (isFullyPaid) {
-        ACTIVE_SESSION_ID = null;
-        ACTIVE_TRX_ID     = null;
-    }
     try {
         const tasks = [];
 
-        // Task A: update session ke Partial/Paid + link transaksi
+        // Task A: update session ke Partial/Paid + link trx + Total_Paid + Remaining_Total
         if (sesId) {
             const updatePayload = {
-                action:     'updatePaymentSession',
-                session_id: sesId,
-                status:     isFullyPaid ? 'Paid' : 'Partial'
+                action:          'updatePaymentSession',
+                session_id:      sesId,
+                status:          isFullyPaid ? 'Paid' : 'Partial',
+                remaining_total: sisaTagihan,  // [V27] update Remaining_Total (bukan Total/Original_Total)
+                items:           JSON.stringify(remainingCart) // [FIX SPLIT DISPLAY] update Item_JSON ke sisa item
             };
-            if (splitTrxId)           updatePayload.id_transaksi = splitTrxId;
-            if (remainingCart.length > 0) updatePayload.total = sisaTagihan;
+            if (splitTrxId) updatePayload.id_transaksi = splitTrxId;
+            // [V27] Total_Paid diupdate via _updateSessionAfterSplitPayment di backend (actionSplitBill)
+            // Tidak perlu kirim di sini karena backend sudah handle
             tasks.push(
                 fetch(API_URL, { method: 'POST', body: JSON.stringify(updatePayload) })
                     .then(r => r.json()).catch(e => ({ status: 'error', message: e.message }))
@@ -9993,10 +10160,17 @@ async function _v16RecordSplitPayment(splitTrxId, metode, nominalBayar, sisaTagi
         // Jalankan semua task PARALEL
         const results = await Promise.all(tasks);
         results.forEach((r, i) => {
-            if (r && r.status !== 'success') console.warn('[V24] SplitPayment task', i, 'gagal:', r);
+            if (r && r.status !== 'success') console.warn('[V27] SplitPayment task', i, 'gagal:', r);
         });
     } catch(e) {
-        console.error('[V24] _v16RecordSplitPayment error:', e);
+        console.error('[V27] _v16RecordSplitPayment error:', e);
+    } finally {
+        // [V27] Reset IDs SETELAH semua task, hanya jika fully paid
+        if (isFullyPaid) {
+            ACTIVE_SESSION_ID         = null;
+            ACTIVE_TRX_ID             = null;
+            window._SESSION_EXPIRES_AT = null;
+        }
     }
 }
 // =============================================================
@@ -10796,16 +10970,24 @@ function renderRekapShiftTable(data) {
     const tfoot = document.getElementById('rekap-shift-tfoot');
     if (tfoot) {
         if (role2 === 'admin' && data.length > 0) {
-            const totModal  = data.reduce((s, r) => s + Number(r.Modal_Awal  || r.modal_awal  || 0), 0);
+            // Hanya jumlahkan arus kas aktual (Tunai, QRIS, Keluar, Transaksi, Diskon)
+            // Modal_Awal TIDAK dijumlahkan karena Modal_Awal shift berikutnya = Saldo_Akhir shift sebelumnya (operan kas) → double counting
             const totTunai  = data.reduce((s, r) => s + Number(r.Tunai       || r.tunai       || 0), 0);
             const totQris   = data.reduce((s, r) => s + Number(r.QRIS        || r.qris        || 0), 0);
             const totTrx    = data.reduce((s, r) => s + Number(r.Total_Transaksi || r.total_transaksi || r.count || 0), 0);
             const totDiskon = data.reduce((s, r) => s + Number(r.Total_Diskon || r.total_diskon || 0), 0);
             const totKeluar = data.reduce((s, r) => s + Number(r.Keluar      || r.keluar      || 0), 0);
-            const totSaldo  = data.reduce((s, r) => s + Number(r.Saldo_Akhir || r.saldo_akhir || 0), 0);
+            // Saldo_Akhir footer = Saldo_Akhir shift TERAKHIR (paling baru) sesuai filter aktif
+            // (bukan jumlah semua Saldo_Akhir — itu double counting karena setiap Saldo_Akhir sudah mengandung Modal_Awal)
+            const sortedForFooter = [...data].sort((a, b) =>
+                new Date(b.Timestamp || b.timestamp || b.Waktu_Closing || b.waktu_closing || 0) -
+                new Date(a.Timestamp || a.timestamp || a.Waktu_Closing || a.waktu_closing || 0)
+            );
+            const lastShift = sortedForFooter[0];
+            const totSaldo  = Number(lastShift.Saldo_Akhir || lastShift.saldo_akhir || 0);
             const f = (n) => 'Rp ' + n.toLocaleString('id-ID');
             const setF = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-            setF('rekap-foot-modal',  f(totModal));
+            setF('rekap-foot-modal',  '-');
             setF('rekap-foot-tunai',  f(totTunai));
             setF('rekap-foot-qris',   f(totQris));
             setF('rekap-foot-trx',    totTrx + ' kali');
@@ -11477,15 +11659,18 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        var total     = Number(d.total||0);
-        var totalPaid = Number(d.total_paid||0);
-        var sisa      = Number(d.sisa||0);
-        var isP       = (d.status==='Partial') && totalPaid>0;
-        var grandAmt  = isP ? sisa : total;
+        // [V27] original_total = total transaksi keseluruhan (tidak berubah saat split)
+        // remaining_total = sisa tagihan setelah pembayaran parsial
+        var originalTotal  = Number(d.original_total  || d.total || 0);
+        var remainingTotal = Number(d.remaining_total || d.total || 0);
+        var totalPaid      = Number(d.total_paid || 0);
+        var sisa           = Number(d.sisa || 0);
+        var isP            = (d.status === 'Partial') && totalPaid > 0;
+        var grandAmt       = isP ? remainingTotal : originalTotal;
 
-        _setText('disp-subtotal',    'Rp '+total.toLocaleString('id-ID'));
+        _setText('disp-subtotal',    'Rp ' + originalTotal.toLocaleString('id-ID'));
         _setText('disp-grand-label', isP ? 'SISA TAGIHAN' : 'TOTAL');
-        _setText('disp-grand-total', 'Rp '+grandAmt.toLocaleString('id-ID'));
+        _setText('disp-grand-total', 'Rp ' + grandAmt.toLocaleString('id-ID'));
 
         var paidWrap = document.getElementById('disp-paid-wrap');
         if (paidWrap) {
@@ -11494,6 +11679,19 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         var qrUrl     = (d.qr_url||'').toString().trim();
+        // Fallback: jika qr_url kosong, pakai QRIS Base64 (static QRIS)
+        if (!qrUrl) {
+            var dispBase64 = (d.qris_base64 || '').toString().trim();
+            if (!dispBase64) {
+                // Coba dari SettingsManager (lokal)
+                dispBase64 = (typeof SettingsManager !== 'undefined' ? SettingsManager.get('qris_base64') : '') || '';
+            }
+            if (!dispBase64) {
+                // Fallback legacy: qris_image_url
+                dispBase64 = (typeof SettingsManager !== 'undefined' ? SettingsManager.get('qris_image_url') : '') || '';
+            }
+            if (dispBase64) qrUrl = dispBase64;
+        }
         var qrPanel   = document.getElementById('disp-qr-panel');
         var noQrPanel = document.getElementById('disp-noqr-panel');
 
